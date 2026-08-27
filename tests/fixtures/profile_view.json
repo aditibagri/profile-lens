@@ -1,0 +1,88 @@
+{
+  "profile": {
+    "firstName": "Grace",
+    "lastName": "Hopper",
+    "headline": "Computer scientist",
+    "summary": "Invented the first compiler.",
+    "locationName": "Arlington, Virginia",
+    "industryName": "Software",
+    "miniProfile": {
+      "firstName": "Grace",
+      "lastName": "Hopper",
+      "occupation": "Computer scientist",
+      "publicIdentifier": "grace-hopper",
+      "picture": {
+        "com.linkedin.common.VectorImage": {
+          "rootUrl": "https://media.licdn.com/dms/image/grace/",
+          "artifacts": [
+            {
+              "width": 200,
+              "height": 200,
+              "fileIdentifyingUrlPathSegment": "photo.jpg"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "positionView": {
+    "elements": [
+      {
+        "title": "Rear Admiral",
+        "companyName": "United States Navy",
+        "locationName": "United States",
+        "description": "COBOL and compiler work.",
+        "dateRange": {
+          "start": { "year": 1943, "month": 1 },
+          "end": { "year": 1986, "month": 8 }
+        }
+      }
+    ]
+  },
+  "educationView": {
+    "elements": [
+      {
+        "schoolName": "Yale University",
+        "degreeName": "Ph.D.",
+        "fieldOfStudy": "Mathematics",
+        "dateRange": {
+          "start": { "year": 1928 },
+          "end": { "year": 1934 }
+        }
+      }
+    ]
+  },
+  "skillView": {
+    "elements": [{ "name": "COBOL", "endorsementCount": 10 }]
+  },
+  "certificationView": {
+    "elements": [
+      {
+        "name": "Navy Commission",
+        "authority": "US Navy",
+        "timePeriod": { "start": { "year": 1944 } }
+      }
+    ]
+  },
+  "languageView": {
+    "elements": [{ "name": "English", "proficiency": "NATIVE_OR_BILINGUAL" }]
+  },
+  "volunteerExperienceView": {
+    "elements": [
+      {
+        "role": "Speaker",
+        "companyName": "Universities",
+        "cause": "Education"
+      }
+    ]
+  },
+  "honorView": {
+    "elements": [
+      {
+        "title": "Presidential Medal of Freedom",
+        "issuer": "United States",
+        "issueDate": { "year": 2016 }
+      }
+    ]
+  }
+}

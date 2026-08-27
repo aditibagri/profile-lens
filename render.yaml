@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: linkedin-profile-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: LINKEDIN_LI_AT
+        sync: false
+      - key: LINKEDIN_JSESSIONID
+        sync: false
+      - key: LINKEDIN_LIAP
+        sync: false
+      - key: LINKEDIN_BCOOKIE
+        sync: false
+      - key: LINKEDIN_LIDC
+        sync: false
+      - key: LINKEDIN_LI_A
+        sync: false
+      - key: API_KEY
+        sync: false
+      - key: CACHE_TTL_SECONDS
+        value: "900"
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "10"

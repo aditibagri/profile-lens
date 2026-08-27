@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "description": "Profile Lens flat export — spreadsheet-friendly columns plus full nested history arrays.",
+  "context": {
+    "currentJob": {
+      "from": "experience",
+      "where": { "dateRange.current": true },
+      "fallbackIndex": 0
+    },
+    "previousJob": {
+      "from": "experience",
+      "skip": "currentJob",
+      "index": 0
+    },
+    "school": {
+      "from": "education",
+      "index": 0
+    }
+  },
+  "fields": [
+    { "to": "firstName", "from": "firstName" },
+    { "to": "lastName", "from": "lastName" },
+    { "to": "fullName", "from": "fullName" },
+    { "to": "headline", "from": "headline" },
+    { "to": "location", "from": "location" },
+    { "to": "industry", "from": "industry" },
+    { "to": "linkedinDescription", "from": "about" },
+    { "to": "linkedinProfileUrl", "from": "profileUrl" },
+    { "to": "linkedinProfileSlug", "from": "publicId" },
+    { "to": "linkedinProfileImageUrl", "from": "profileImage" },
+    { "to": "backgroundImageUrl", "from": "backgroundImage" },
+
+    { "to": "companyName", "from": "$currentJob.company" },
+    { "to": "jobTitle", "from": "$currentJob.title" },
+    { "to": "jobLocation", "from": "$currentJob.location" },
+    { "to": "jobDateRange", "from": "$currentJob.dateRange", "transform": "dateRange" },
+    { "to": "jobDescription", "from": "$currentJob.description" },
+
+    { "to": "previousCompanyName", "from": "$previousJob.company" },
+    { "to": "previousJobTitle", "from": "$previousJob.title" },
+    { "to": "previousJobDateRange", "from": "$previousJob.dateRange", "transform": "dateRange" },
+
+    { "to": "linkedinSchoolName", "from": "$school.school" },
+    { "to": "linkedinSchoolDegree", "from": "$school.degree" },
+    { "to": "linkedinSchoolFieldOfStudy", "from": "$school.fieldOfStudy" },
+    { "to": "linkedinSchoolDateRange", "from": "$school.dateRange", "transform": "dateRange" },
+
+    { "to": "linkedinSkillsLabel", "from": "skills", "pluck": "name", "join": " | " },
+    {
+      "to": "languagesLabel",
+      "from": "languages",
+      "pluck": ["name", "proficiency"],
+      "join": " | ",
+      "itemFormat": "{name} ({proficiency})"
+    },
+
+    { "to": "experienceCount", "from": "experience", "transform": "count" },
+    { "to": "educationCount", "from": "education", "transform": "count" },
+    { "to": "skillsCount", "from": "skills", "transform": "count" },
+
+    { "to": "experienceJson", "from": "experience" },
+    { "to": "educationJson", "from": "education" },
+    { "to": "certificationsJson", "from": "certifications" },
+    { "to": "honorsJson", "from": "honors" },
+    { "to": "volunteerJson", "from": "volunteer" }
+  ]
+}

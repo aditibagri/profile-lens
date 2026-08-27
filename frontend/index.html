@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Profile Lens — LinkedIn Profile API</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Syne:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/styles.css" />
+    <script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
+  </head>
+  <body>
+    <div class="atmosphere" aria-hidden="true"></div>
+
+    <div id="app" v-cloak>
+      <header class="topbar">
+        <a class="brand" href="/">
+          <span class="brand-mark" aria-hidden="true"></span>
+          Profile Lens
+        </a>
+        <nav class="top-links">
+          <a href="/docs">API docs</a>
+          <a href="/health">Health</a>
+        </nav>
+      </header>
+
+      <main>
+        <section class="hero">
+          <p class="eyebrow">Frontend · Vue &nbsp;|&nbsp; Backend · FastAPI adapters</p>
+          <h1>Profile URL in. Schema you choose out.</h1>
+          <p class="lede">
+            UI and API are separate packages. Schema adapters on the backend control the JSON shape
+            (<code>default</code> nested vs <code>profilelens</code> flat).
+          </p>
+
+          <form class="lookup" autocomplete="off" @submit.prevent="onFetchProfile">
+            <label class="sr-only" for="profile-url">LinkedIn profile URL</label>
+            <input
+              id="profile-url"
+              v-model.trim="profileUrl"
+              type="url"
+              required
+              placeholder="https://www.linkedin.com/in/…"
+              spellcheck="false"
+              :disabled="loading"
+            />
+            <button type="submit" :disabled="loading || !profileUrl">
+              <span class="btn-label">{{ loading ? "Fetching…" : "Fetch profile" }}</span>
+              <span v-if="loading" class="btn-spinner" aria-hidden="true"></span>
+            </button>
+          </form>
+
+          <div class="controls-row">
+            <label class="adapter-label" for="adapter">
+              Schema adapter
+              <select id="adapter" v-model="activeAdapter" :disabled="loading">
+                <option v-for="a in availableAdapters" :key="a.name" :value="a.name">
+                  {{ a.name }}
+                </option>
+              </select>
+            </label>
+            <p v-if="availableAdapters.length" class="adapter-hint">
+              {{ availableAdapters.find((a) => a.name === activeAdapter)?.description }}
+            </p>
+          </div>
+
+          <div class="example-row">
+            <span class="example-label">Try</span>
+            <button
+              v-for="ex in examples"
+              :key="ex.slug"
+              type="button"
+              class="example-chip"
+              :disabled="loading"
+              @click="useExample(ex.url)"
+            >
+              {{ ex.label }}
+            </button>
+          </div>
+
+          <div v-if="apiKeyRequired" class="api-key-row">
+            <label for="api-key">API key</label>
+            <input
+              id="api-key"
+              v-model.trim="apiKey"
+              type="password"
+              placeholder="X-API-Key from .env"
+              autocomplete="off"
+            />
+          </div>
+
+          <p class="status-line" :class="{ error: statusIsError }" role="status">{{ status }}</p>
+        </section>
+
+        <section class="give-get">
+          <div class="give-get-col">
+            <h2>What you give</h2>
+            <ul>
+              <li>A public LinkedIn profile URL</li>
+              <li>Session cookies on the <strong>backend</strong></li>
+              <li>An adapter name (<code>default</code> or <code>profilelens</code>)</li>
+            </ul>
+          </div>
+          <div class="give-get-col">
+            <h2>What you get</h2>
+            <ul class="field-grid">
+              <li v-for="field in outputFields" :key="field">{{ field }}</li>
+            </ul>
+            <p class="give-get-note">
+              Response envelope: <code>{ "adapter": "…", "data": { … } }</code>
+            </p>
+          </div>
+        </section>
+
+        <section v-if="profile" class="result" ref="resultEl">
+          <div class="result-toolbar">
+            <div class="count-strip" aria-label="Section counts">
+              <span class="adapter-pill">adapter: {{ activeAdapter }}</span>
+              <span v-for="c in sectionCounts" :key="c.label">
+                <strong>{{ c.count }}</strong> {{ c.label }}
+              </span>
+            </div>
+            <div class="export-actions">
+              <button type="button" class="ghost-btn" @click="copyJson">{{ copyLabel }}</button>
+              <button type="button" class="ghost-btn" @click="downloadJson">Download JSON</button>
+              <button type="button" class="ghost-btn" @click="downloadCsv">Download CSV</button>
+            </div>
+          </div>
+
+          <article class="profile-sheet">
+            <div class="cover" :style="coverStyle"></div>
+
+            <div class="identity">
+              <img
+                v-if="displayImage"
+                class="avatar"
+                :src="displayImage"
+                :alt="displayName"
+              />
+              <div v-else class="avatar avatar-placeholder" aria-hidden="true"></div>
+
+              <div class="identity-text">
+                <h2>{{ displayName }}</h2>
+                <p v-if="displayHeadline" class="headline">{{ displayHeadline }}</p>
+                <p v-if="metaLine" class="meta">{{ metaLine }}</p>
+                <a
+                  v-if="profileLink"
+                  class="profile-link"
+                  :href="profileLink"
+                  target="_blank"
+                  rel="noopener"
+                >
+                  Open on LinkedIn
+                </a>
+              </div>
+
+              <div class="view-toggle" role="tablist" aria-label="Result view">
+                <button
+                  type="button"
+                  class="toggle"
+                  :class="{ active: view === 'pretty' }"
+                  role="tab"
+                  :aria-selected="view === 'pretty'"
+                  @click="view = 'pretty'"
+                >
+                  Profile
+                </button>
+                <button
+                  type="button"
+                  class="toggle"
+                  :class="{ active: view === 'json' }"
+                  role="tab"
+                  :aria-selected="view === 'json'"
+                  @click="view = 'json'"
+                >
+                  JSON
+                </button>
+              </div>
+            </div>
+
+            <div v-show="view === 'pretty'" class="pretty-view">
+              <section v-if="overviewBits.length" class="block overview">
+                <h3>At a glance</h3>
+                <dl class="overview-grid">
+                  <div v-for="bit in overviewBits" :key="bit.label">
+                    <dt>{{ bit.label }}</dt>
+                    <dd>{{ bit.value }}</dd>
+                  </div>
+                </dl>
+              </section>
+
+              <template v-if="isNested">
+                <section v-if="profile.about" class="block">
+                  <h3>About</h3>
+                  <p>{{ profile.about }}</p>
+                </section>
+
+                <section v-if="profile.experience?.length" class="block">
+                  <h3>Experience</h3>
+                  <ul class="timeline">
+                    <li v-for="(item, i) in profile.experience" :key="'exp-' + i" class="timeline-row">
+                      <img
+                        v-if="item.companyLogo"
+                        class="org-logo"
+                        :src="item.companyLogo"
+                        :alt="item.company || ''"
+                      />
+                      <div v-else class="org-logo org-logo-fallback" aria-hidden="true"></div>
+                      <div class="timeline-body">
+                        <div class="title">{{ item.title || "Role" }}</div>
+                        <div class="sub">{{ joinBits([item.company, item.employmentType, item.location]) }}</div>
+                        <div class="dates">{{ formatRange(item.dateRange) }}</div>
+                        <div v-if="item.description" class="desc">{{ item.description }}</div>
+                      </div>
+                    </li>
+                  </ul>
+                </section>
+
+                <section v-if="profile.education?.length" class="block">
+                  <h3>Education</h3>
+                  <ul class="timeline">
+                    <li v-for="(item, i) in profile.education" :key="'edu-' + i" class="timeline-row">
+                      <img
+                        v-if="item.schoolLogo"
+                        class="org-logo"
+                        :src="item.schoolLogo"
+                        :alt="item.school || ''"
+                      />
+                      <div v-else class="org-logo org-logo-fallback" aria-hidden="true"></div>
+                      <div class="timeline-body">
+                        <div class="title">{{ item.school || "School" }}</div>
+                        <div class="sub">{{ joinBits([item.degree, item.fieldOfStudy]) }}</div>
+                        <div class="dates">{{ formatRange(item.dateRange) }}</div>
+                        <div v-if="item.description" class="desc">{{ item.description }}</div>
+                      </div>
+                    </li>
+                  </ul>
+                </section>
+
+                <section v-if="profile.skills?.length" class="block">
+                  <h3>Skills</h3>
+                  <ul class="chip-list">
+                    <li v-for="(skill, i) in profile.skills" :key="'skill-' + i">
+                      {{ skill.endorsementCount != null ? `${skill.name} · ${skill.endorsementCount}` : skill.name }}
+                    </li>
+                  </ul>
+                </section>
+
+                <section v-if="profile.certifications?.length" class="block">
+                  <h3>Certifications</h3>
+                  <ul class="timeline">
+                    <li v-for="(item, i) in profile.certifications" :key="'cert-' + i">
+                      <div class="title">{{ item.name || "Certification" }}</div>
+                      <div class="sub">{{ item.issuer || "" }}</div>
+                      <div class="dates">{{ joinBits([item.issuedOn, item.expiresOn], " → ") }}</div>
+                    </li>
+                  </ul>
+                </section>
+
+                <section v-if="profile.languages?.length" class="block">
+                  <h3>Languages</h3>
+                  <ul class="chip-list">
+                    <li v-for="(lang, i) in profile.languages" :key="'lang-' + i">
+                      {{ lang.proficiency ? `${lang.name} · ${lang.proficiency}` : lang.name }}
+                    </li>
+                  </ul>
+                </section>
+              </template>
+
+              <section v-else class="block">
+                <h3>Flat schema</h3>
+                <p class="lede" style="margin: 0">
+                  Switch to JSON for the full flat export, or choose the <code>default</code> adapter for nested sections.
+                </p>
+                <p v-if="profile.linkedinSkillsLabel" class="meta" style="margin-top: 0.75rem">
+                  Skills: {{ profile.linkedinSkillsLabel }}
+                </p>
+              </section>
+            </div>
+
+            <pre v-show="view === 'json'" class="json-view">{{ prettyJson }}</pre>
+          </article>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <span>frontend/ + backend/app · Vue 3 + schema adapters</span>
+        <a href="/docs">OpenAPI</a>
+      </footer>
+    </div>
+
+    <script type="module" src="/js/app.js"></script>
+  </body>
+</html>

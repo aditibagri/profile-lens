@@ -1,0 +1,123 @@
+{
+  "data": {
+    "elements": ["*urn:li:fsd_profile:ABC123"]
+  },
+  "included": [
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.Profile",
+      "entityUrn": "urn:li:fsd_profile:ABC123",
+      "publicIdentifier": "ada-lovelace",
+      "firstName": "Ada",
+      "lastName": "Lovelace",
+      "headline": "Mathematician and first computer programmer",
+      "summary": "Wrote the first algorithm intended for a machine.",
+      "geoLocationName": "London, England",
+      "pronouns": "she/her",
+      "industry": "Computer Science",
+      "profilePicture": {
+        "displayImageReference": {
+          "vectorImage": {
+            "rootUrl": "https://media.licdn.com/dms/image/profile/",
+            "artifacts": [
+              {
+                "width": 100,
+                "height": 100,
+                "fileIdentifyingUrlPathSegment": "tiny.jpg"
+              },
+              {
+                "width": 800,
+                "height": 800,
+                "fileIdentifyingUrlPathSegment": "large.jpg"
+              }
+            ]
+          }
+        }
+      },
+      "backgroundPicture": {
+        "displayImageReference": {
+          "vectorImage": {
+            "rootUrl": "https://media.licdn.com/dms/image/bg/",
+            "artifacts": [
+              {
+                "width": 1400,
+                "height": 400,
+                "fileIdentifyingUrlPathSegment": "cover.jpg"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.Position",
+      "entityUrn": "urn:li:fsd_profilePosition:1",
+      "title": "Analyst",
+      "companyName": "Analytical Engine Co.",
+      "locationName": "London",
+      "description": "Designed computation notes.",
+      "employmentType": "Full-time",
+      "dateRange": {
+        "start": { "year": 1842, "month": 1 },
+        "end": { "year": 1852, "month": 6 }
+      }
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.Education",
+      "entityUrn": "urn:li:fsd_profileEducation:1",
+      "schoolName": "Home education",
+      "degreeName": "Mathematics",
+      "fieldOfStudy": "Calculus",
+      "dateRange": {
+        "start": { "year": 1830 },
+        "end": { "year": 1835 }
+      }
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.Skill",
+      "entityUrn": "urn:li:fsd_skill:1",
+      "name": "Mathematics",
+      "endorsementCount": 42
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.Skill",
+      "entityUrn": "urn:li:fsd_skill:2",
+      "skill": { "name": "Algorithms" }
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.Certification",
+      "entityUrn": "urn:li:fsd_cert:1",
+      "name": "Analytical Engine Notes",
+      "authority": "Royal Society",
+      "licenseNumber": "1843-A",
+      "url": "https://example.com/cert",
+      "timePeriod": {
+        "start": { "year": 1843, "month": 7 }
+      }
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.Language",
+      "entityUrn": "urn:li:fsd_language:1",
+      "name": "English",
+      "proficiency": "NATIVE_OR_BILINGUAL"
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.VolunteerExperience",
+      "entityUrn": "urn:li:fsd_volunteer:1",
+      "role": "Patron",
+      "companyName": "Science Museum",
+      "cause": "Education",
+      "description": "Supported public science education.",
+      "dateRange": {
+        "start": { "year": 1845 }
+      }
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.identity.profile.Honor",
+      "entityUrn": "urn:li:fsd_honor:1",
+      "title": "Countess of Lovelace",
+      "issuer": "United Kingdom",
+      "description": "Peerage title",
+      "issuedOn": { "year": 1838 }
+    }
+  ]
+}
