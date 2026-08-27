@@ -4,6 +4,9 @@ No browser is involved: no Playwright, Selenium, Puppeteer, or HTML scraping.
 Profile data is fetched with GET requests to /voyager/api/... using session cookies.
 curl_cffi is an HTTP client (libcurl) used only to match a common TLS fingerprint;
 it does not launch Chrome or render pages.
+
+Read-only by design: this client never POSTs/PUTs/PATCHes/DELETEs to LinkedIn,
+so a caller of this API cannot edit the operator's LinkedIn profile via the session.
 """
 
 from __future__ import annotations
@@ -11,8 +14,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from curl_cffi.requests import AsyncSession
 
@@ -28,6 +32,16 @@ from app.linkedin.merge import merge_section_payloads
 logger = logging.getLogger(__name__)
 
 BASE = "https://www.linkedin.com/voyager/api"
+ALLOWED_HOST = "www.linkedin.com"
+# Only identity profile *read* paths — never profile update / messaging / posts.
+_ALLOWED_PATH_RE = re.compile(
+    r"^/voyager/api/identity/"
+    r"(?:dash/profiles|profiles/[^/]+/(?:profileView|skills|skillCategory|"
+    r"certifications|languages|honors|volunteerExperiences))"
+    r"(?:\?.*)?$"
+)
+_MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE", "CONNECT", "TRACE"})
+
 FALLBACK_DECORATIONS = [
     "com.linkedin.voyager.dash.deco.identity.profile.FullProfileWithEntities-93",
     "com.linkedin.voyager.dash.deco.identity.profile.FullProfileWithEntities-35",
@@ -58,7 +72,56 @@ TRACK = {
 }
 
 
+def assert_read_only_url(url: str) -> None:
+    """Reject anything that is not a LinkedIn Voyager profile *read* URL."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.netloc != ALLOWED_HOST:
+        raise LinkedInError("Blocked non-LinkedIn or non-HTTPS upstream URL.")
+    path_qs = parsed.path
+    if parsed.query:
+        path_qs = f"{parsed.path}?{parsed.query}"
+    if not _ALLOWED_PATH_RE.match(path_qs):
+        raise LinkedInError("Blocked upstream path outside read-only profile endpoints.")
+
+
+class ReadOnlyAsyncSession:
+    """Wraps curl_cffi AsyncSession and refuses every mutating HTTP method."""
+
+    def __init__(self, session: AsyncSession):
+        self._session = session
+
+    async def get(self, url: str, **kwargs: Any) -> Any:
+        assert_read_only_url(url)
+        return await self._session.get(url, **kwargs)
+
+    async def request(self, method: str, url: str, **kwargs: Any) -> Any:
+        verb = (method or "").upper()
+        if verb in _MUTATING_METHODS or verb != "GET":
+            raise LinkedInError(
+                f"Blocked {verb or 'unknown'} to LinkedIn — this client is read-only."
+            )
+        assert_read_only_url(url)
+        return await self._session.request("GET", url, **kwargs)
+
+    async def post(self, *args: Any, **kwargs: Any) -> Any:
+        raise LinkedInError("Blocked POST to LinkedIn — this client is read-only.")
+
+    async def put(self, *args: Any, **kwargs: Any) -> Any:
+        raise LinkedInError("Blocked PUT to LinkedIn — this client is read-only.")
+
+    async def patch(self, *args: Any, **kwargs: Any) -> Any:
+        raise LinkedInError("Blocked PATCH to LinkedIn — this client is read-only.")
+
+    async def delete(self, *args: Any, **kwargs: Any) -> Any:
+        raise LinkedInError("Blocked DELETE to LinkedIn — this client is read-only.")
+
+    async def close(self) -> None:
+        await self._session.close()
+
+
 class LinkedInClient:
+    """Read-only Voyager client. Public surface is ``fetch_profile`` only."""
+
     def __init__(
         self,
         li_at: str,
@@ -75,7 +138,15 @@ class LinkedInClient:
             for key, value in (extra_cookies or {}).items()
             if key and (value or "").strip()
         }
-        self._session: AsyncSession | None = None
+        self._session: ReadOnlyAsyncSession | None = None
+
+    def __repr__(self) -> str:
+        # Never print session cookies if the client is logged or raised in a debugger.
+        extra = sorted(self.extra_cookies)
+        return (
+            f"LinkedInClient(configured={self.configured!r}, "
+            f"decoration_id={self.decoration_id!r}, extra_cookies={extra!r})"
+        )
 
     @property
     def configured(self) -> bool:
@@ -87,6 +158,7 @@ class LinkedInClient:
             self._session = None
 
     def _headers(self, public_id: str) -> dict[str, str]:
+        # Accept + CSRF for GET only. No content-type / write headers.
         return {
             "accept": "application/vnd.linkedin.normalized+json+2.1",
             "accept-language": "en-US,en;q=0.9",
@@ -107,10 +179,11 @@ class LinkedInClient:
         cookies.update(self.extra_cookies)
         return cookies
 
-    async def _session_get(self) -> AsyncSession:
+    async def _session_get(self) -> ReadOnlyAsyncSession:
         if self._session is None:
             # HTTP-only: impersonate sets TLS/JA3, it does not start a browser.
-            self._session = AsyncSession(impersonate="chrome", timeout=30)
+            raw = AsyncSession(impersonate="chrome", timeout=30)
+            self._session = ReadOnlyAsyncSession(raw)
         return self._session
 
     async def fetch_profile(self, public_id: str) -> dict[str, Any]:
@@ -189,6 +262,8 @@ class LinkedInClient:
         *,
         optional: bool = False,
     ) -> dict[str, Any] | None:
+        # Hard read-only gate before any network I/O.
+        assert_read_only_url(url)
         session = await self._session_get()
         try:
             response = await session.get(
@@ -197,11 +272,14 @@ class LinkedInClient:
                 cookies=self._cookies(),
                 allow_redirects=False,
             )
+        except LinkedInError:
+            raise
         except Exception as exc:  # network / TLS
             if optional:
-                logger.info("Optional Voyager request failed for %s: %s", url, exc)
+                logger.info("Optional Voyager request failed for %s (%s)", public_id, type(exc).__name__)
                 return None
-            raise LinkedInError(f"Failed to reach LinkedIn: {exc}") from exc
+            # Do not interpolate exception text — it can include request headers/cookies.
+            raise LinkedInError("Failed to reach LinkedIn.") from exc
 
         status = response.status_code
         if status in (301, 302, 303, 307, 308):
@@ -234,8 +312,8 @@ class LinkedInClient:
         if status >= 400:
             if optional:
                 return None
-            snippet = (response.text or "")[:240]
-            raise LinkedInError(f"LinkedIn rejected the request (HTTP {status}): {snippet}")
+            # Never echo upstream response bodies — they can contain session material.
+            raise LinkedInError(f"LinkedIn rejected the request (HTTP {status}).")
 
         try:
             payload = response.json()

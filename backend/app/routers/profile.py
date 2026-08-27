@@ -20,7 +20,7 @@ def require_api_key(
     request: Request,
     x_api_key: str | None = Header(default=None, alias="X-API-Key"),
 ) -> None:
-    expected = getattr(request.app.state.settings, "api_key", "") or ""
+    expected = getattr(request.app.state.settings, "api_key_value", "") or ""
     if not expected:
         return
     if not x_api_key or x_api_key != expected:
