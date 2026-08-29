@@ -6,18 +6,24 @@ export async function fetchUiConfig() {
   return res.json();
 }
 
-export async function fetchProfile({ url, apiKey, adapter, session }) {
+export async function fetchProfile({ url, apiKey, adapter, session, schema }) {
   const headers = { "Content-Type": "application/json" };
   if (apiKey) headers["X-API-Key"] = apiKey;
 
+  const hasCustomFields = Array.isArray(schema?.fields) && schema.fields.length > 0;
+  const adapterName = adapter === "custom" && !hasCustomFields ? "profilelens" : adapter;
+
   const params = new URLSearchParams();
-  if (adapter) params.set("adapter", adapter);
+  if (adapterName) params.set("adapter", adapterName);
   const qs = params.toString();
   const endpoint = qs ? `/v1/profile?${qs}` : "/v1/profile";
 
   const payload = { url };
   if (session?.liAt && session?.jsessionid) {
     payload.session = session;
+  }
+  if (adapterName === "custom" && hasCustomFields) {
+    payload.schema = schema;
   }
 
   const res = await fetch(endpoint, {

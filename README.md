@@ -66,19 +66,24 @@ PYTHONPATH=backend .venv/bin/python -m uvicorn app.main:app --reload --host 127.
 ```
 
 Open http://127.0.0.1:8000/ for the Vue frontend (`frontend/`).
-The backend lives in `backend/app/` and exposes schema adapters so callers choose the JSON shape.
+The backend lives in `backend/app/` and exposes the Profile Lens JSON mapping (`adapters/mappings/profilelens.json`).
 Open http://127.0.0.1:8000/docs for the interactive OpenAPI UI.
 
 ```bash
-# Nested schema (default adapter)
-curl -X POST 'http://127.0.0.1:8000/v1/profile?adapter=default' \
+# Profile Lens schema (the default)
+curl -X POST 'http://127.0.0.1:8000/v1/profile' \
   -H 'Content-Type: application/json' \
   -d '{"url":"https://www.linkedin.com/in/YOUR_VANITY_SLUG/"}'
 
-# Flat export-oriented schema
+# Same mapping, named explicitly
 curl -X POST 'http://127.0.0.1:8000/v1/profile?adapter=profilelens' \
   -H 'Content-Type: application/json' \
   -d '{"url":"https://www.linkedin.com/in/YOUR_VANITY_SLUG/"}'
+
+# Custom keys (POST only — send a mapping document as `schema`)
+curl -X POST 'http://127.0.0.1:8000/v1/profile?adapter=custom' \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://www.linkedin.com/in/YOUR_VANITY_SLUG/","schema":{"fields":[{"to":"name","from":"fullName"},{"to":"role","from":"experience.0.title"}]}}'
 ```
 
 If `API_KEY` is set in `.env`, also send `-H 'X-API-Key: …'`.
@@ -110,9 +115,9 @@ Tests use fixture JSON only. They never call LinkedIn.
 | `GET` | `/` | Vue frontend (`frontend/`). |
 | `GET` | `/ui/config` | Cookies / API key flags + available adapters (no secrets). |
 | `GET` | `/health` | Liveness. `linkedinConfigured` is true when cookies are present. |
-| `GET` | `/v1/adapters` | List schema adapters (`default`, `profilelens`). |
-| `POST` | `/v1/profile?adapter=` | Body `{"url": "…"}`. Adapter controls `data` shape. |
-| `GET` | `/v1/profile?url=&adapter=` | Same lookup via query params. |
+| `GET` | `/v1/adapters` | List schema adapters (`profilelens`, `custom`). |
+| `POST` | `/v1/profile?adapter=` | Body `{"url": "…"}`. For `custom`, also send `schema`. |
+| `GET` | `/v1/profile?url=&adapter=` | Same lookup via query params (`custom` is POST-only). |
 
 ### Response envelope
 
@@ -120,13 +125,20 @@ Every profile response looks like:
 
 ```json
 {
-  "adapter": "default",
-  "data": { }
+  "adapter": "profilelens",
+  "data": { },
+  "source": { }
 }
 ```
 
-- `adapter=default` → nested profile (`experience[]`, `education[]`, …)
-- `adapter=profilelens` → flat export fields (`companyName`, `jobTitle`, `linkedinSkillsLabel`, …) plus `experienceJson` / `educationJson` for full history
+`source` is the canonical nested profile parsed from LinkedIn. `data` is what the selected schema returns. The website shows both side by side and remaps `data` live as you edit adapter JSON.
+
+- `adapter=profilelens` (default) → flat export from `adapters/mappings/profilelens.json` (`companyName`, `jobTitle`, `linkedinSkillsLabel`, … plus `experienceJson` / `educationJson`)
+- `adapter=custom` → you choose the keys, including nested paths like `identity.name`. POST body must include `schema.fields`.
+
+Output shape for the built-in adapter is `mappings/profilelens.json`. Edit that file to change what lookups return. `custom` still accepts a request-supplied schema.
+
+On the website, paste the exact JSON you want back (`"name": "$fullName"` pulls that LinkedIn field). The JSON editor flags parse errors and unknown `$paths`. Save it as a named adapter in this browser to reuse it; lookups then send that mapping as `adapter=custom`.
 
 
 Optional header: `X-API-Key` (required when `API_KEY` is configured).
@@ -257,7 +269,10 @@ Other production-shaped details:
 ```
 backend/app/              # FastAPI backend only
   main.py                 # app factory, mounts frontend assets, /health
-  adapters/               # schema adapters (default, profilelens)
+  adapters/               # schema adapters (JSON mappings + custom)
+    catalog.py            # source fields offered in the UI field picker
+    custom.py             # request-supplied mapping → output JSON
+    file_adapter.py       # built-in adapters: one JSON file per name
     mappings/*.json       # declarative field maps (edit these to change JSON shape)
     mapping_schema.py     # validates mapping documents
     json_mapper.py        # applies mapping JSON → output dict

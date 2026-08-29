@@ -26,8 +26,12 @@ def _dig(data: Any, path: str) -> Any:
             return None
         if isinstance(cur, dict):
             cur = cur.get(part)
-        else:
-            return None
+            continue
+        if isinstance(cur, list) and part.isdigit():
+            idx = int(part)
+            cur = cur[idx] if 0 <= idx < len(cur) else None
+            continue
+        return None
     return cur
 
 
@@ -131,11 +135,33 @@ def _apply_field(field: FieldMapping, root: dict[str, Any], context: dict[str, A
     return value
 
 
+def _assign_path(target: dict[str, Any], path: str, value: Any) -> None:
+    parts = path.split(".")
+    cur = target
+    for part in parts[:-1]:
+        nxt = cur.get(part)
+        if not isinstance(nxt, dict):
+            nxt = {}
+            cur[part] = nxt
+        cur = nxt
+    cur[parts[-1]] = value
+
+
 def apply_mapping(document: MappingDocument, root: dict[str, Any]) -> dict[str, Any]:
     context: dict[str, Any] = {}
     for name, selector in document.context.items():
         context[name] = _resolve_context(root, selector, context)
-    return {field.to: _apply_field(field, root, context) for field in document.fields}
+    out: dict[str, Any] = {}
+    for field in document.fields:
+        _assign_path(out, field.to, _apply_field(field, root, context))
+    return out
+
+
+def list_mapping_names() -> list[str]:
+    """Stem names of ``mappings/*.json``, with ``profilelens`` first."""
+    names = [path.stem for path in MAPPINGS_DIR.glob("*.json") if path.is_file()]
+    names.sort(key=lambda name: (name != "profilelens", name))
+    return names
 
 
 @lru_cache(maxsize=16)

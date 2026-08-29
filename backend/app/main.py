@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.adapters import DEFAULT_ADAPTER, list_adapters
+from app.adapters.catalog import SCHEMA_FIELDS, adapter_schema_presets
 from app.cache import ProfileCache
 from app.config import Settings, get_settings
 from app.exceptions import LinkedInError
@@ -16,7 +17,13 @@ from app.linkedin.client import LinkedInClient
 from app.paths import resolve_frontend_dir
 from app.ratelimit import RateLimiter
 from app.routers.profile import router as profile_router
-from app.schemas import AdapterInfo, HealthResponse, UiConfigResponse
+from app.schemas import (
+    AdapterInfo,
+    HealthResponse,
+    SchemaFieldInfo,
+    SchemaPreset,
+    UiConfigResponse,
+)
 from app.security import redact
 
 FRONTEND_DIR = resolve_frontend_dir()
@@ -88,6 +95,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 AdapterInfo(name=a.name, description=a.description) for a in list_adapters()
             ],
             defaultAdapter=DEFAULT_ADAPTER,
+            schemaFields=[SchemaFieldInfo(**row) for row in SCHEMA_FIELDS],
+            schemaPresets={
+                name: SchemaPreset.model_validate(preset)
+                for name, preset in adapter_schema_presets().items()
+            },
         )
 
     @app.get("/health", response_model=HealthResponse, tags=["ops"])

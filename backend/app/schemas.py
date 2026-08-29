@@ -1,5 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.adapters.mapping_schema import MappingDocument
+
 
 class LinkedInSessionIn(BaseModel):
     """Visitor-supplied session. Used for that request only — never stored."""
@@ -16,8 +18,15 @@ class LinkedInSessionIn(BaseModel):
 
 
 class ProfileRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     url: str = Field(..., examples=["https://www.linkedin.com/in/williamhgates/"])
     session: LinkedInSessionIn | None = None
+    mapping: MappingDocument | None = Field(
+        default=None,
+        alias="schema",
+        description="Required when adapter=custom. Maps your JSON keys to canonical profile paths.",
+    )
 
 
 class DateRange(BaseModel):
@@ -97,7 +106,7 @@ class Honor(BaseModel):
 
 
 class ProfileResponse(BaseModel):
-    """Canonical nested profile model (internal + default adapter output)."""
+    """Canonical nested profile parsed from LinkedIn. Adapters map this via JSON."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -127,11 +136,36 @@ class AdaptedProfileResponse(BaseModel):
 
     adapter: str
     data: dict
+    source: dict | None = None
 
 
 class AdapterInfo(BaseModel):
     name: str
     description: str
+
+
+class SchemaFieldInfo(BaseModel):
+    path: str
+    label: str
+    group: str
+
+
+class SchemaMappingRow(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, serialize_by_alias=True)
+
+    to: str
+    from_: str = Field(alias="from")
+    label: str = ""
+    transform: str | None = None
+    pluck: str | list[str] | None = None
+    join: str | None = None
+    itemFormat: str | None = None
+
+
+class SchemaPreset(BaseModel):
+    description: str = ""
+    fields: list[SchemaMappingRow] = Field(default_factory=list)
+    context: dict = Field(default_factory=dict)
 
 
 class ErrorResponse(BaseModel):
@@ -149,4 +183,6 @@ class UiConfigResponse(BaseModel):
     apiKeyRequired: bool
     linkedinConfigured: bool
     adapters: list[AdapterInfo] = Field(default_factory=list)
-    defaultAdapter: str = "default"
+    defaultAdapter: str = "profilelens"
+    schemaFields: list[SchemaFieldInfo] = Field(default_factory=list)
+    schemaPresets: dict[str, SchemaPreset] = Field(default_factory=dict)

@@ -5,6 +5,8 @@ import hashlib
 from fastapi import APIRouter, Depends, Header, Query, Request
 
 from app.adapters import DEFAULT_ADAPTER, get_adapter, list_adapters
+from app.adapters.custom import CustomProfileAdapter
+from app.adapters.mapping_schema import MappingDocument
 from app.exceptions import LinkedInError, NotConfiguredError
 from app.linkedin.client import LinkedInClient
 from app.linkedin.parser import parse_profile
@@ -56,11 +58,11 @@ async def post_profile(
     request: Request,
     adapter: str = Query(
         DEFAULT_ADAPTER,
-        description="Schema adapter: default (nested) or profilelens (flat export).",
+        description="Schema adapter: profilelens (flat mapping) or custom (body.schema.fields required).",
     ),
     _: None = Depends(require_api_key),
 ) -> AdaptedProfileResponse:
-    return await _lookup(request, body.url, adapter, body.session)
+    return await _lookup(request, body.url, adapter, body.session, body.mapping)
 
 
 @router.get(
@@ -73,11 +75,25 @@ async def get_profile(
     url: str = Query(..., description="Public LinkedIn profile URL"),
     adapter: str = Query(
         DEFAULT_ADAPTER,
-        description="Schema adapter: default (nested) or profilelens (flat export).",
+        description="Schema adapter: profilelens (flat mapping). Custom schemas require POST.",
     ),
     _: None = Depends(require_api_key),
 ) -> AdaptedProfileResponse:
-    return await _lookup(request, url, adapter, None)
+    if (adapter or "").strip().lower() == CustomProfileAdapter.name:
+        raise LinkedInError(
+            "Custom schemas require POST /v1/profile with a schema object in the JSON body.",
+            status_code=400,
+            code="invalid_schema",
+        )
+    return await _lookup(request, url, adapter, None, None)
+
+
+def _adapted(schema_adapter, profile) -> AdaptedProfileResponse:
+    return AdaptedProfileResponse(
+        adapter=schema_adapter.name,
+        data=schema_adapter.adapt(profile),
+        source=profile.model_dump(mode="json"),
+    )
 
 
 def _visitor_client(session: LinkedInSessionIn, decoration_id: str) -> LinkedInClient | None:
@@ -126,8 +142,9 @@ async def _lookup(
     url: str,
     adapter_name: str,
     visitor_session: LinkedInSessionIn | None,
+    mapping: MappingDocument | None,
 ) -> AdaptedProfileResponse:
-    schema_adapter = get_adapter(adapter_name)
+    schema_adapter = get_adapter(adapter_name, mapping=mapping)
     public_id = extract_public_id(url)
     canonical = f"https://www.linkedin.com/in/{public_id}/"
     request.state.redact_secrets = _session_secrets(visitor_session)
@@ -140,10 +157,7 @@ async def _lookup(
     try:
         cached = request.app.state.cache.get(public_id, scope)
         if cached is not None:
-            return AdaptedProfileResponse(
-                adapter=schema_adapter.name,
-                data=schema_adapter.adapt(cached),
-            )
+            return _adapted(schema_adapter, cached)
 
         if not request.app.state.limiter.allow():
             retry_after = request.app.state.limiter.retry_after()
@@ -169,10 +183,7 @@ async def _lookup(
             )
 
         request.app.state.cache.set(public_id, profile, scope)
-        return AdaptedProfileResponse(
-            adapter=schema_adapter.name,
-            data=schema_adapter.adapt(profile),
-        )
+        return _adapted(schema_adapter, profile)
     finally:
         if ephemeral is not None:
             await ephemeral.close()
