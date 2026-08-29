@@ -17,14 +17,19 @@ class ProfileCache:
         else:
             self._store = None
 
-    def get(self, public_id: str) -> ProfileResponse | None:
+    def get(self, public_id: str, scope: str = "") -> ProfileResponse | None:
         if self._store is None:
             return None
         with self._lock:
-            return self._store.get(public_id.lower())
+            return self._store.get(self._key(public_id, scope))
 
-    def set(self, public_id: str, profile: ProfileResponse) -> None:
+    def set(self, public_id: str, profile: ProfileResponse, scope: str = "") -> None:
         if self._store is None:
             return
         with self._lock:
-            self._store[public_id.lower()] = profile
+            self._store[self._key(public_id, scope)] = profile
+
+    @staticmethod
+    def _key(public_id: str, scope: str) -> str:
+        pid = public_id.lower()
+        return f"{pid}:{scope}" if scope else pid

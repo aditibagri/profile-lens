@@ -128,11 +128,13 @@ class LinkedInClient:
         jsessionid: str,
         decoration_id: str,
         extra_cookies: dict[str, str] | None = None,
+        user_agent: str = "",
     ):
         self.li_at = (li_at or "").strip()
         csrf = (jsessionid or "").strip().strip('"')
         self.csrf = csrf
         self.decoration_id = decoration_id
+        self.user_agent = (user_agent or "").strip()
         self.extra_cookies = {
             key: value.strip()
             for key, value in (extra_cookies or {}).items()
@@ -159,7 +161,7 @@ class LinkedInClient:
 
     def _headers(self, public_id: str) -> dict[str, str]:
         # Accept + CSRF for GET only. No content-type / write headers.
-        return {
+        headers = {
             "accept": "application/vnd.linkedin.normalized+json+2.1",
             "accept-language": "en-US,en;q=0.9",
             "csrf-token": self.csrf,
@@ -169,6 +171,10 @@ class LinkedInClient:
             "x-li-track": json.dumps(TRACK, separators=(",", ":")),
             "referer": f"https://www.linkedin.com/in/{public_id}/",
         }
+        if self.user_agent:
+            # Same browser string that minted li_at — LinkedIn is picky when they diverge.
+            headers["user-agent"] = self.user_agent
+        return headers
 
     def _cookies(self) -> dict[str, str]:
         jsid = self.csrf if self.csrf.startswith('"') else f'"{self.csrf}"'

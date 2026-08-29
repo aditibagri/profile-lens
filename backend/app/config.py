@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     linkedin_bcookie: SecretStr = SecretStr("")
     linkedin_lidc: SecretStr = SecretStr("")
     linkedin_li_a: SecretStr = SecretStr("")
+    # Optional: paste the User-Agent from the same browser that minted the cookies.
+    linkedin_user_agent: str = ""
     api_key: SecretStr = SecretStr("")
     cache_ttl_seconds: int = 900
     rate_limit_per_minute: int = 10

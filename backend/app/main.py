@@ -35,6 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             jsessionid=session["jsessionid"],
             decoration_id=settings.decoration_id,
             extra_cookies=settings.extra_linkedin_cookies(),
+            user_agent=settings.linkedin_user_agent,
         )
         app.state.cache = ProfileCache(ttl_seconds=settings.cache_ttl_seconds)
         app.state.limiter = RateLimiter(max_calls=settings.rate_limit_per_minute)
@@ -97,11 +98,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     @app.exception_handler(LinkedInError)
-    async def linkedin_error_handler(_request: Request, exc: LinkedInError) -> JSONResponse:
+    async def linkedin_error_handler(request: Request, exc: LinkedInError) -> JSONResponse:
         headers = {}
         if exc.status_code == 429:
             headers["Retry-After"] = "60"
-        safe = redact(exc.message, settings.secrets_for_redaction())
+        extra = getattr(request.state, "redact_secrets", None) or []
+        safe = redact(exc.message, [*settings.secrets_for_redaction(), *extra])
         return JSONResponse(
             status_code=exc.status_code,
             content={"error": safe, "code": exc.code, "detail": safe},

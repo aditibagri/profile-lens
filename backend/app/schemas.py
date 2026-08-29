@@ -1,8 +1,23 @@
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class LinkedInSessionIn(BaseModel):
+    """Visitor-supplied session. Used for that request only — never stored."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    liAt: str = ""
+    jsessionid: str = ""
+    userAgent: str = ""
+    liap: str = ""
+    bcookie: str = ""
+    lidc: str = ""
+    liA: str = ""
+
+
 class ProfileRequest(BaseModel):
     url: str = Field(..., examples=["https://www.linkedin.com/in/williamhgates/"])
+    session: LinkedInSessionIn | None = None
 
 
 class DateRange(BaseModel):

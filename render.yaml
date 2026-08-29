@@ -9,6 +9,8 @@ services:
         sync: false
       - key: LINKEDIN_JSESSIONID
         sync: false
+      - key: LINKEDIN_USER_AGENT
+        sync: false
       - key: LINKEDIN_LIAP
         sync: false
       - key: LINKEDIN_BCOOKIE

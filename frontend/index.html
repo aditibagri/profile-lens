@@ -3,7 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Profile Lens — LinkedIn Profile API</title>
+    <title>Profile Lens</title>
+    <meta name="profile-lens-app" content="1" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -12,30 +13,45 @@
     />
     <link rel="stylesheet" href="/css/styles.css" />
     <script src="https://unpkg.com/vue@3.5.13/dist/vue.global.prod.js"></script>
+    <script>
+      window.addEventListener("DOMContentLoaded", function () {
+        if (window.Vue) return;
+        var el = document.getElementById("boot-fail");
+        if (el) el.hidden = false;
+      });
+    </script>
   </head>
   <body>
+    <p id="boot-fail" class="boot-fail" hidden>
+      The page did not start. Open
+      <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a>
+      in Chrome or Safari (not the HTML file on disk).
+    </p>
     <div class="atmosphere" aria-hidden="true"></div>
 
-    <div id="app" v-cloak>
+    <div id="app">
       <header class="topbar">
         <a class="brand" href="/">
           <span class="brand-mark" aria-hidden="true"></span>
           Profile Lens
         </a>
         <nav class="top-links">
-          <a href="/docs">API docs</a>
-          <a href="/health">Health</a>
+          <a href="#connect">Connect</a>
+          <a href="#how-to">How it works</a>
+          <a href="/docs">API</a>
         </nav>
       </header>
 
       <main>
         <section class="hero">
-          <p class="eyebrow">Frontend · Vue &nbsp;|&nbsp; Backend · FastAPI adapters</p>
-          <h1>Profile URL in. Schema you choose out.</h1>
+          <p class="eyebrow">Public profiles → structured JSON</p>
+          <h1>Look up a LinkedIn profile. Get clean JSON back.</h1>
           <p class="lede">
-            UI and API are separate packages. Schema adapters on the backend control the JSON shape
-            (<code>default</code> nested vs <code>profilelens</code> flat).
+            Paste a profile URL. We return name, headline, about, experience, education, skills,
+            and more — the same fields you can already see when you are logged in.
           </p>
+
+          <div class="session-pill" :class="sessionPillClass">{{ sessionPillLabel }}</div>
 
           <form class="lookup" autocomplete="off" @submit.prevent="onFetchProfile">
             <label class="sr-only" for="profile-url">LinkedIn profile URL</label>
@@ -46,27 +62,41 @@
               required
               placeholder="https://www.linkedin.com/in/…"
               spellcheck="false"
-              :disabled="loading"
+              :disabled="loading || !canLookup"
             />
-            <button type="submit" :disabled="loading || !profileUrl">
-              <span class="btn-label">{{ loading ? "Fetching…" : "Fetch profile" }}</span>
+            <button type="submit" :disabled="loading || !profileUrl || !canLookup">
+              <span class="btn-label">{{ lookupButtonLabel }}</span>
               <span v-if="loading" class="btn-spinner" aria-hidden="true"></span>
             </button>
           </form>
 
-          <div class="controls-row">
-            <label class="adapter-label" for="adapter">
-              Schema adapter
-              <select id="adapter" v-model="activeAdapter" :disabled="loading">
-                <option v-for="a in availableAdapters" :key="a.name" :value="a.name">
-                  {{ a.name }}
-                </option>
-              </select>
-            </label>
-            <p v-if="availableAdapters.length" class="adapter-hint">
-              {{ availableAdapters.find((a) => a.name === activeAdapter)?.description }}
-            </p>
-          </div>
+          <details class="advanced">
+            <summary>Advanced options</summary>
+            <div class="controls-row">
+              <label class="adapter-label" for="adapter">
+                JSON shape
+                <select id="adapter" v-model="activeAdapter" :disabled="loading">
+                  <option v-for="a in availableAdapters" :key="a.name" :value="a.name">
+                    {{ a.name }}
+                  </option>
+                </select>
+              </label>
+              <p v-if="availableAdapters.length" class="adapter-hint">
+                {{ availableAdapters.find((a) => a.name === activeAdapter)?.description }}
+              </p>
+            </div>
+            <div v-if="apiKeyRequired" class="api-key-row">
+              <label for="api-key">Host API key</label>
+              <input
+                id="api-key"
+                v-model.trim="apiKey"
+                type="password"
+                placeholder="If this site requires one"
+                autocomplete="off"
+                @change="persistApiKey"
+              />
+            </div>
+          </details>
 
           <div class="example-row">
             <span class="example-label">Try</span>
@@ -75,34 +105,121 @@
               :key="ex.slug"
               type="button"
               class="example-chip"
-              :disabled="loading"
+              :disabled="loading || !canLookup"
               @click="useExample(ex.url)"
             >
               {{ ex.label }}
             </button>
           </div>
 
-          <div v-if="apiKeyRequired" class="api-key-row">
-            <label for="api-key">API key</label>
-            <input
-              id="api-key"
-              v-model.trim="apiKey"
-              type="password"
-              placeholder="X-API-Key from .env"
-              autocomplete="off"
-            />
+          <p class="status-line" :class="{ error: statusIsError }" role="status">{{ status }}</p>
+        </section>
+
+        <section id="connect" class="connect-panel">
+          <h2>1. Connect your LinkedIn</h2>
+          <p class="how-to-lede">
+            This site uses <strong>your</strong> logged-in LinkedIn session — not your password.
+            Cookies stay in this browser and are sent only when you look up a profile.
+            The server does not keep them.
+          </p>
+
+          <div v-if="browserConnected" class="connect-ok">
+            <p>LinkedIn is connected in this browser.</p>
+            <button type="button" class="ghost-btn" @click="disconnectSession">Disconnect</button>
           </div>
 
-          <p class="status-line" :class="{ error: statusIsError }" role="status">{{ status }}</p>
+          <template v-else>
+            <div class="option-tabs" role="tablist" aria-label="How to connect">
+              <button
+                type="button"
+                class="toggle"
+                :class="{ active: sessionMethod === 'extension' }"
+                @click="sessionMethod = 'extension'"
+              >
+                Browser extension
+              </button>
+              <button
+                type="button"
+                class="toggle"
+                :class="{ active: sessionMethod === 'paste' }"
+                @click="sessionMethod = 'paste'"
+              >
+                Paste cookies
+              </button>
+            </div>
+
+            <article v-show="sessionMethod === 'extension'" class="how-to-card">
+              <p class="how-to-card-kicker">Fastest on Chrome or Firefox</p>
+              <ol class="steps">
+                <li>Log into LinkedIn in this same browser.</li>
+                <li>
+                  Install the helper: Chrome → <code>chrome://extensions</code> → Developer mode →
+                  Load unpacked → choose the <code>extension</code> folder from this project.
+                  Firefox → <code>about:debugging</code> → This Firefox → Load Temporary Add-on →
+                  <code>extension/manifest.json</code>.
+                </li>
+                <li>Stay on <strong>this</strong> tab. Click the Profile Lens icon in the toolbar.</li>
+                <li>Click <strong>Save to this website</strong>. You should see “Connected” above.</li>
+              </ol>
+            </article>
+
+            <article v-show="sessionMethod === 'paste'" class="how-to-card">
+              <p class="how-to-card-kicker">Works in any browser, including Safari</p>
+              <ol class="steps">
+                <li>Log into LinkedIn.</li>
+                <li>DevTools → Application (Chrome) or Storage (Safari) → Cookies → linkedin.com.</li>
+                <li>Paste <code>li_at</code> and <code>JSESSIONID</code> below. You can also paste a whole copied block.</li>
+              </ol>
+              <form class="connect-form" autocomplete="off" @submit.prevent="savePastedSession">
+                <label>
+                  Session cookie (li_at)
+                  <textarea
+                    v-model="sessionForm.liAt"
+                    rows="2"
+                    placeholder="Paste li_at, or a whole .env block from the extension"
+                    @paste="onSessionPaste"
+                  ></textarea>
+                </label>
+                <label>
+                  CSRF cookie (JSESSIONID)
+                  <input v-model.trim="sessionForm.jsessionid" type="password" placeholder="ajax:…" />
+                </label>
+                <label>
+                  Browser user-agent
+                  <input v-model.trim="sessionForm.userAgent" type="text" />
+                </label>
+                <details class="extras">
+                  <summary>Optional cookies (if lookups fail from a cloud host)</summary>
+                  <label>liap <input v-model.trim="sessionForm.liap" type="password" /></label>
+                  <label>bcookie <input v-model.trim="sessionForm.bcookie" type="password" /></label>
+                  <label>lidc <input v-model.trim="sessionForm.lidc" type="password" /></label>
+                  <label>li_a <input v-model.trim="sessionForm.liA" type="password" /></label>
+                </details>
+                <button type="submit" class="primary-btn">Save connection</button>
+              </form>
+            </article>
+          </template>
+        </section>
+
+        <section id="how-to" class="how-to">
+          <h2>2. Look up a profile</h2>
+          <ol class="steps how-to-steps">
+            <li>Connect LinkedIn above (once per browser).</li>
+            <li>Paste any <code>linkedin.com/in/…</code> URL at the top.</li>
+            <li>Download JSON or CSV from the result.</li>
+          </ol>
+          <p class="how-to-lede">
+            No LinkedIn password. No official LinkedIn developer app. This service talks to
+            LinkedIn’s own profile APIs using the session you already have.
+          </p>
         </section>
 
         <section class="give-get">
           <div class="give-get-col">
             <h2>What you give</h2>
             <ul>
-              <li>A public LinkedIn profile URL</li>
-              <li>Session cookies on the <strong>backend</strong></li>
-              <li>An adapter name (<code>default</code> or <code>profilelens</code>)</li>
+              <li>A LinkedIn profile URL</li>
+              <li>Your LinkedIn session in this browser</li>
             </ul>
           </div>
           <div class="give-get-col">
@@ -288,7 +405,7 @@
       </main>
 
       <footer class="footer">
-        <span>frontend/ + backend/app · Vue 3 + schema adapters</span>
+        <span>Your session stays in this browser</span>
         <a href="/docs">OpenAPI</a>
       </footer>
     </div>

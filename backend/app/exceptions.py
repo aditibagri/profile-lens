@@ -14,7 +14,7 @@ class InvalidProfileUrlError(LinkedInError):
 
 
 class SessionExpiredError(LinkedInError):
-    def __init__(self, message: str = "LinkedIn session expired. Refresh LINKEDIN_LI_AT and LINKEDIN_JSESSIONID."):
+    def __init__(self, message: str = "LinkedIn signed you out. Connect again on this page."):
         super().__init__(message, status_code=401, code="session_expired")
 
 
@@ -29,5 +29,8 @@ class LinkedInRateLimitError(LinkedInError):
 
 
 class NotConfiguredError(LinkedInError):
-    def __init__(self, message: str = "LinkedIn cookies are not configured on the server."):
+    def __init__(
+        self,
+        message: str = "Connect LinkedIn on this page first (extension or paste cookies).",
+    ):
         super().__init__(message, status_code=503, code="not_configured")

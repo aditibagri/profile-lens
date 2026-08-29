@@ -9,9 +9,9 @@ BIN := $(VENV)/bin
 help:
 	@echo "LinkedIn Profile API"
 	@echo ""
-	@echo "  make run       Start locally with uvicorn (no Docker) — use this"
+	@echo "  make up        Start the app (Docker if installed, else uvicorn)"
+	@echo "  make run       Start locally with uvicorn (no Docker)"
 	@echo "  make stop      Stop whatever is listening on port $(PORT)"
-	@echo "  make up        Docker if installed, otherwise same as make run"
 	@echo "  make health    Hit GET /health"
 	@echo "  make down      Stop the Docker container (no-op for local uvicorn)"
 	@echo "  make logs      Follow Docker container logs"
@@ -26,6 +26,13 @@ venv:
 
 run: .env
 	@test -x $(BIN)/python || (echo "Missing .venv — run: make venv" && exit 1)
+	@if lsof -tiTCP:$(PORT) -sTCP:LISTEN >/dev/null 2>&1; then \
+		echo "Port $(PORT) is already in use — the app is probably already running."; \
+		echo "Open http://127.0.0.1:$(PORT)/"; \
+		echo "If Docker started it: make logs   (or make down to stop)"; \
+		echo "If uvicorn started it: Ctrl+C in that terminal, or: make stop"; \
+		exit 1; \
+	fi
 	@echo "API:    http://127.0.0.1:$(PORT)"
 	@echo "UI:     http://127.0.0.1:$(PORT)/"
 	@echo "Docs:   http://127.0.0.1:$(PORT)/docs"
@@ -49,11 +56,13 @@ build:
 
 up: .env
 	@if command -v docker >/dev/null 2>&1; then \
-		docker compose up --build -d; \
+		echo "API:    http://127.0.0.1:$(PORT)"; \
+		echo "UI:     http://127.0.0.1:$(PORT)/"; \
+		echo "Docs:   http://127.0.0.1:$(PORT)/docs"; \
+		echo "Health: http://127.0.0.1:$(PORT)/health"; \
+		echo "Stop with Ctrl+C (or: make down)"; \
 		echo ""; \
-		echo "API running at http://127.0.0.1:$(PORT)"; \
-		echo "Docs:          http://127.0.0.1:$(PORT)/docs"; \
-		echo "Health:        http://127.0.0.1:$(PORT)/health"; \
+		docker compose up --build; \
 	else \
 		echo "Docker is not installed — starting locally with uvicorn."; \
 		echo "Install Docker Desktop later if you want containers."; \

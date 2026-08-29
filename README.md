@@ -6,18 +6,44 @@ This is a hiring-challenge submission: reverse-engineer the APIs LinkedIn's own 
 
 ## Setup
 
-### 1. Get LinkedIn session cookies
+### 1. How to proceed — connect LinkedIn
 
-The official LinkedIn developer API cannot return an arbitrary member's full public profile. LinkedIn's website loads that data from internal **Voyager** endpoints, authenticated with the same cookies as your browser session. The challenge allows using your own LinkedIn credentials on the backend — we use session cookies, not a stored password.
+Visitors on the hosted site do **not** edit `.env`. They open the homepage, connect once in the browser, then paste a profile URL.
 
-1. Log into [linkedin.com](https://www.linkedin.com) in Chrome or Safari.
-2. Open DevTools → **Application** (Chrome) or **Storage** (Safari) → **Cookies** → `https://www.linkedin.com`.
-3. Copy:
-   - `li_at` — session token (**required**)
-   - `JSESSIONID` — CSRF token, usually `ajax:…` (quotes are optional; the app strips them) (**required**)
-   - Optional, if hosted requests get `401`/`403` while the same cookies work on your laptop: `liap`, `bcookie`, `lidc`, `li_a`
+Do **not** type a LinkedIn password into this app. Cookies expire; if lookups fail, connect again.
 
-Cookies expire. If the API starts returning `session_expired`, copy them again.
+**On the live site**
+
+1. Open the deployed URL.
+2. Click **Connect**.
+3. Either:
+   - **Browser extension:** log into LinkedIn, stay on the Profile Lens tab, click the toolbar icon, then **Save to this website**.
+   - **Paste cookies:** copy `li_at` and `JSESSIONID` from DevTools and save them in the form on the page.
+4. Paste a `linkedin.com/in/…` URL and fetch.
+
+The session is stored in **that visitor’s browser** and sent only with their lookup. The server does not keep it.
+
+**Server operator (optional fallback)**
+
+You may still put `LINKEDIN_LI_AT` / `LINKEDIN_JSESSIONID` in Render env vars so the site works even when a visitor has not connected. Set `API_KEY` on a public URL so strangers cannot spend that session.
+
+#### Option 2 — Browser extension (Chrome or Firefox)
+
+1. Log into [linkedin.com](https://www.linkedin.com) in Chrome or Firefox.
+2. Load the unpacked extension from `extension/`:
+   - **Chrome:** `chrome://extensions` → **Developer mode** → **Load unpacked**.
+   - **Firefox:** `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** → `extension/manifest.json`.
+3. Open your Profile Lens site (local or hosted) and keep that tab focused.
+4. Click the **Profile Lens** icon → **Save to this website**.
+
+#### Option 3 — Paste cookies on the website
+
+1. Log into LinkedIn.
+2. DevTools → Application/Storage → Cookies → `https://www.linkedin.com`.
+3. Copy `li_at` and `JSESSIONID` (required). Optional: `liap`, `bcookie`, `lidc`, `li_a`.
+4. On Profile Lens, open **Paste cookies**, paste, and click **Save connection**.
+
+The user-agent is filled from this browser automatically.
 
 ### 2. Run locally (no Docker)
 
@@ -28,7 +54,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# paste LINKEDIN_LI_AT and LINKEDIN_JSESSIONID into .env
+# paste session from Option 2 or Option 3 (see above)
 
 make run
 ```
@@ -72,6 +98,7 @@ Tests use fixture JSON only. They never call LinkedIn.
 3. Set environment variables (do **not** commit them):
    - `LINKEDIN_LI_AT`
    - `LINKEDIN_JSESSIONID`
+   - `LINKEDIN_USER_AGENT` (same browser that minted the cookies)
    - `LINKEDIN_LIAP` / `LINKEDIN_BCOOKIE` / `LINKEDIN_LIDC` / `LINKEDIN_LI_A` (optional; use if Render gets `401`/`403`)
    - `API_KEY` (recommended on a public URL)
 4. Render provides a public `https://…onrender.com` URL. Health check: `GET /health`.
@@ -161,7 +188,7 @@ This is a **pure reverse-engineered HTTP client**. It does **not** use a browser
 - No rendering of `linkedin.com/in/{slug}` HTML
 - No automated login flow
 - The server issues `GET` requests straight to LinkedIn Voyager JSON endpoints
-- Session cookies (`li_at`, `JSESSIONID`) are copied once from a normal logged-in browser and stored as env vars — the process never drives a browser
+- Session cookies (`li_at`, `JSESSIONID`) are captured once from a normal logged-in browser — either the `extension/` helper (Option 2) or DevTools paste (Option 3) — and stored as env vars. The process never drives a browser.
 
 `curl_cffi` is an HTTP library (libcurl). `impersonate="chrome"` only matches a TLS fingerprint so datacenter Python stacks are less likely to be blocked. It does not start Chromium or parse a profile page.
 
@@ -178,7 +205,7 @@ GET /voyager/api/identity/dash/profiles
 
 That is a Rest.li endpoint. The request mirrors the XHR the web app sends, but we replay it ourselves over HTTP:
 
-- Cookies: `li_at` (session) and `JSESSIONID` (CSRF). Optional extras: `liap`, `bcookie`, `lidc`, `li_a` if a datacenter IP is pickier than a home session.
+- Cookies: `li_at` (session) and `JSESSIONID` (CSRF). Optional extras: `liap`, `bcookie`, `lidc`, `li_a` if a datacenter IP is pickier than a home session. Optional `LINKEDIN_USER_AGENT` should match the browser that minted `li_at` (Option 2 copies it; Option 3 you paste it).
 - Header `csrf-token` = the `JSESSIONID` value without quotes.
 - `accept: application/vnd.linkedin.normalized+json+2.1`
 - `x-restli-protocol-version: 2.0.0`
@@ -242,6 +269,9 @@ frontend/                 # Vue 3 UI (separate from backend)
   css/styles.css
   js/api.js               # API client
   js/app.js               # Vue app
+extension/                # Chrome/Firefox session helper (reads cookies locally)
+  manifest.json
+  popup.html / popup.js
 tests/                    # fixtures, no live LinkedIn calls
 Dockerfile / render.yaml  # HTTPS deploy
 ```

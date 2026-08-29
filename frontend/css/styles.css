@@ -32,8 +32,14 @@ body {
   line-height: 1.5;
 }
 
-[v-cloak] {
-  display: none;
+.boot-fail {
+  margin: 1rem auto;
+  max-width: 40rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: rgba(180, 35, 24, 0.1);
+  color: var(--danger);
+  font-weight: 600;
 }
 
 .avatar-placeholder {
@@ -325,6 +331,193 @@ main {
   margin: 0.9rem 0 0;
   font-size: 0.88rem;
   color: var(--ink-soft);
+}
+
+.session-pill {
+  display: inline-flex;
+  margin: 0 0 1rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.session-pill.ok {
+  background: rgba(15, 124, 114, 0.14);
+  color: var(--accent-deep);
+}
+
+.session-pill.off {
+  background: rgba(180, 35, 24, 0.1);
+  color: var(--danger);
+}
+
+.advanced {
+  margin-top: 1rem;
+  max-width: 40rem;
+}
+
+.advanced summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.connect-panel {
+  margin-top: 2.5rem;
+}
+
+.connect-panel h2,
+.how-to h2 {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  letter-spacing: -0.03em;
+}
+
+.connect-ok {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.2rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: rgba(247, 251, 250, 0.72);
+}
+
+.connect-ok p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.connect-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.connect-form label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.connect-form input,
+.connect-form textarea {
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+}
+
+.primary-btn {
+  appearance: none;
+  border: 0;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  cursor: pointer;
+  justify-self: start;
+}
+
+.extras {
+  font-size: 0.88rem;
+}
+
+.how-to-steps {
+  max-width: 40rem;
+  margin-bottom: 0.75rem;
+}
+
+.how-to h2 {
+  margin: 0 0 0.5rem;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  letter-spacing: -0.03em;
+}
+
+.how-to-lede {
+  margin: 0 0 1rem;
+  color: var(--ink-soft);
+  max-width: 46rem;
+}
+
+.how-to-lede code,
+.how-to-card code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.86em;
+  background: rgba(11, 31, 42, 0.06);
+  padding: 0.05rem 0.3rem;
+  border-radius: 4px;
+}
+
+.how-to-warn {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(180, 35, 24, 0.08);
+  color: var(--danger);
+  font-size: 0.92rem;
+}
+
+.option-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 0.2rem;
+  background: rgba(11, 31, 42, 0.06);
+  border-radius: 999px;
+  margin-bottom: 0.85rem;
+}
+
+.how-to-card {
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(247, 251, 250, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.how-to-card-kicker {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+}
+
+.how-to-card > p {
+  margin: 0 0 0.85rem;
+  color: var(--ink-soft);
+}
+
+.steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--ink);
+}
+
+.steps li + li {
+  margin-top: 0.55rem;
+}
+
+.env-snippet {
+  margin: 0.55rem 0 0;
+  padding: 0.75rem 0.85rem;
+  overflow: auto;
+  border-radius: 10px;
+  background: rgba(11, 31, 42, 0.06);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
 
 .result-toolbar {

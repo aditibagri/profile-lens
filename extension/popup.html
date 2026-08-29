@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Profile Lens session</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <strong>Profile Lens</strong>
+      <span>Session helper</span>
+    </header>
+    <p id="status" class="status">Checking LinkedIn…</p>
+    <ul id="checks" class="checks" hidden></ul>
+    <pre id="preview" class="preview" hidden></pre>
+    <button id="save" type="button" disabled>Save to this website</button>
+    <button id="copy" type="button" disabled>Copy session</button>
+    <p id="hint" class="hint">
+      Log into LinkedIn, then open your Profile Lens site and click this icon on that tab.
+      Save writes the session into this browser for that site only.
+    </p>
+    <script src="popup.js"></script>
+  </body>
+</html>

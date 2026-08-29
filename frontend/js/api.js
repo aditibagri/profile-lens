@@ -6,7 +6,7 @@ export async function fetchUiConfig() {
   return res.json();
 }
 
-export async function fetchProfile({ url, apiKey, adapter }) {
+export async function fetchProfile({ url, apiKey, adapter, session }) {
   const headers = { "Content-Type": "application/json" };
   if (apiKey) headers["X-API-Key"] = apiKey;
 
@@ -15,16 +15,21 @@ export async function fetchProfile({ url, apiKey, adapter }) {
   const qs = params.toString();
   const endpoint = qs ? `/v1/profile?${qs}` : "/v1/profile";
 
+  const payload = { url };
+  if (session?.liAt && session?.jsessionid) {
+    payload.session = session;
+  }
+
   const res = await fetch(endpoint, {
     method: "POST",
     headers,
-    body: JSON.stringify({ url }),
+    body: JSON.stringify(payload),
   });
   const body = await res.json();
   if (!res.ok) {
     throw new Error(body.error || body.detail || `Request failed (${res.status})`);
   }
-  return body; // { adapter, data }
+  return body;
 }
 
 export async function listAdapters() {

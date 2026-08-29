@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -46,7 +46,7 @@ def test_ui_home_and_config() -> None:
         home = client.get("/")
         assert home.status_code == 200
         assert "text/html" in home.headers["content-type"]
-        assert b"Profile Lens" in home.content
+        assert b"Connect your LinkedIn" in home.content
         assert b"vue" in home.content.lower()
         assert b"fetchProfile" in client.get("/js/api.js").content
         assert b"createApp" in client.get("/js/app.js").content
@@ -158,6 +158,47 @@ def test_get_profile_uses_cache(settings: Settings, dash_payload: dict) -> None:
         assert second.json()["adapter"] == "profilelens"
         assert second.json()["data"]["companyName"] == "Analytical Engine Co."
         mock.assert_awaited_once()
+
+
+def test_post_accepts_browser_session_without_server_cookies(dash_payload: dict) -> None:
+    token = "VISITOR_LI_AT_TOKEN_DO_NOT_LEAK"
+    empty = Settings(linkedin_li_at="", linkedin_jsessionid="", api_key="")
+    with _client(empty) as client:
+        with patch("app.routers.profile.LinkedInClient") as mock_cls:
+            instance = mock_cls.return_value
+            instance.configured = True
+            instance.fetch_profile = AsyncMock(return_value=dash_payload)
+            instance.close = AsyncMock()
+            response = client.post(
+                "/v1/profile",
+                json={
+                    "url": "https://www.linkedin.com/in/ada-lovelace/",
+                    "session": {
+                        "liAt": token,
+                        "jsessionid": "ajax:1",
+                        "userAgent": "TestBrowser/1.0",
+                    },
+                },
+            )
+        assert response.status_code == 200
+        assert response.json()["data"]["fullName"] == "Ada Lovelace"
+        assert token not in response.text
+        mock_cls.assert_called_once()
+        kwargs = mock_cls.call_args.kwargs
+        assert kwargs["li_at"] == token
+        assert kwargs["user_agent"] == "TestBrowser/1.0"
+        instance.close.assert_awaited()
+
+
+def test_post_without_any_session_returns_503() -> None:
+    empty = Settings(linkedin_li_at="", linkedin_jsessionid="", api_key="")
+    with _client(empty) as client:
+        response = client.post(
+            "/v1/profile",
+            json={"url": "https://www.linkedin.com/in/ada-lovelace/"},
+        )
+        assert response.status_code == 503
+        assert response.json()["code"] == "not_configured"
 
 
 def test_session_expired_maps_to_401(settings: Settings) -> None:

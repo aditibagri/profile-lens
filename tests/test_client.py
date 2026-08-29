@@ -17,6 +17,24 @@ def test_extra_cookies_are_included_in_request() -> None:
     assert cookies["lidc"] == "b=VG:123"
 
 
+def test_user_agent_header_when_configured() -> None:
+    client = LinkedInClient(
+        "li-at-token",
+        "ajax:1",
+        "deco",
+        user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) TestBrowser/1.0",
+    )
+    headers = client._headers("ada-lovelace")
+    assert headers["user-agent"] == (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) TestBrowser/1.0"
+    )
+
+
+def test_user_agent_omitted_when_blank() -> None:
+    client = LinkedInClient("li-at-token", "ajax:1", "deco")
+    assert "user-agent" not in client._headers("ada-lovelace")
+
+
 def test_blank_extra_cookies_are_omitted() -> None:
     client = LinkedInClient(
         "li-at-token",
@@ -40,6 +58,11 @@ def test_settings_maps_optional_cookie_env_vars() -> None:
         linkedin_li_a="  ",
     )
     assert settings.extra_linkedin_cookies() == {"liap": "true", "bcookie": "v=2"}
+
+
+def test_settings_maps_user_agent() -> None:
+    settings = Settings(linkedin_user_agent="Mozilla/5.0 Test")
+    assert settings.linkedin_user_agent == "Mozilla/5.0 Test"
 
 
 async def test_fetch_profile_merges_section_endpoints(dash_payload: dict) -> None:

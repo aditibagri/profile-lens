@@ -1,6 +1,26 @@
 import { fetchProfile, fetchUiConfig } from "./api.js";
+import {
+  SESSION_EVENT,
+  clearSession,
+  emptyForm,
+  loadApiKey,
+  loadSession,
+  parsePastedBlock,
+  saveApiKey,
+  saveSession,
+  toRequestSession,
+} from "./session.js";
 
-const { createApp, computed, nextTick, onMounted, ref } = Vue;
+const VueLib = window.Vue;
+if (!VueLib) {
+  document.body.insertAdjacentHTML(
+    "afterbegin",
+    '<p class="boot-fail">Could not load the UI. Open <a href="http://127.0.0.1:8000/">http://127.0.0.1:8000/</a> (not a local HTML file).</p>'
+  );
+  throw new Error("Vue did not load");
+}
+
+const { createApp, computed, nextTick, onMounted, ref } = VueLib;
 
 const EXAMPLES = [
   { label: "williamhgates", slug: "williamhgates", url: "https://www.linkedin.com/in/williamhgates/" },
@@ -23,6 +43,26 @@ createApp({
     const resultEl = ref(null);
     const copyLabel = ref("Copy JSON");
     const examples = EXAMPLES;
+    const sessionMethod = ref("extension");
+    const storedSession = ref(loadSession());
+    const sessionForm = ref(emptyForm());
+
+    const browserConnected = computed(() => Boolean(storedSession.value?.liAt && storedSession.value?.jsessionid));
+    const canLookup = computed(() => browserConnected.value || linkedinConfigured.value);
+    const lookupButtonLabel = computed(() => {
+      if (loading.value) return "Fetching…";
+      if (!canLookup.value) return "Connect first";
+      return "Fetch profile";
+    });
+    const sessionPillLabel = computed(() => {
+      if (browserConnected.value) return "Connected in this browser";
+      if (linkedinConfigured.value) return "Using the host’s LinkedIn session";
+      return "Not connected";
+    });
+    const sessionPillClass = computed(() => {
+      if (browserConnected.value || linkedinConfigured.value) return "ok";
+      return "off";
+    });
 
     const isNested = computed(() => activeAdapter.value === "default");
 
@@ -141,7 +181,27 @@ createApp({
       ].filter((row) => row.count > 0);
     });
 
-    onMounted(loadConfig);
+    onMounted(() => {
+      apiKey.value = loadApiKey();
+      window.addEventListener(SESSION_EVENT, syncStoredSession);
+      window.addEventListener("storage", syncStoredSession);
+      loadConfig();
+    });
+
+    function syncStoredSession() {
+      storedSession.value = loadSession();
+      refreshReadyStatus();
+    }
+
+    function refreshReadyStatus() {
+      if (browserConnected.value) {
+        setStatus("Connected — paste a LinkedIn profile URL.");
+      } else if (linkedinConfigured.value) {
+        setStatus("Ready — paste a public LinkedIn profile URL.");
+      } else {
+        setStatus("Connect LinkedIn below to look up profiles.", true);
+      }
+    }
 
     async function loadConfig() {
       try {
@@ -150,14 +210,10 @@ createApp({
         linkedinConfigured.value = Boolean(cfg.linkedinConfigured);
         availableAdapters.value = cfg.adapters || [];
         activeAdapter.value = cfg.defaultAdapter || "default";
-        if (!linkedinConfigured.value) {
-          setStatus(
-            "LinkedIn cookies are not configured yet. Add LINKEDIN_LI_AT and LINKEDIN_JSESSIONID to .env.",
-            true
-          );
-        } else {
-          setStatus("Ready — paste a public LinkedIn profile URL.");
+        if (apiKeyRequired.value && !apiKey.value) {
+          apiKey.value = loadApiKey();
         }
+        refreshReadyStatus();
       } catch {
         setStatus("Could not load UI config.", true);
       }
@@ -182,6 +238,7 @@ createApp({
           url,
           apiKey: apiKey.value,
           adapter: activeAdapter.value,
+          session: toRequestSession(storedSession.value),
         });
         activeAdapter.value = envelope.adapter || activeAdapter.value;
         profile.value = envelope.data;
@@ -191,7 +248,11 @@ createApp({
         await nextTick();
         resultEl.value?.scrollIntoView({ behavior: "smooth", block: "start" });
       } catch (err) {
-        setStatus(err.message || "Lookup failed.", true);
+        const message = err.message || "Lookup failed.";
+        setStatus(message, true);
+        if (/signed you out|session_expired|Connect LinkedIn/i.test(message)) {
+          document.getElementById("connect")?.scrollIntoView({ behavior: "smooth" });
+        }
       } finally {
         loading.value = false;
       }
@@ -200,6 +261,45 @@ createApp({
     function setStatus(text, isError = false) {
       status.value = text;
       statusIsError.value = isError;
+    }
+
+    function persistApiKey() {
+      saveApiKey(apiKey.value);
+    }
+
+    function onSessionPaste(event) {
+      const text = event.clipboardData?.getData("text") || "";
+      const parsed = parsePastedBlock(text);
+      if (!parsed) return;
+      event.preventDefault();
+      sessionForm.value = parsed;
+    }
+
+    function savePastedSession() {
+      const form = sessionForm.value;
+      if (!form.liAt.trim() || !form.jsessionid.trim()) {
+        setStatus("Paste both li_at and JSESSIONID.", true);
+        return;
+      }
+      saveSession({
+        liAt: form.liAt.trim(),
+        jsessionid: form.jsessionid.trim(),
+        userAgent: form.userAgent.trim() || navigator.userAgent,
+        liap: form.liap.trim(),
+        bcookie: form.bcookie.trim(),
+        lidc: form.lidc.trim(),
+        liA: form.liA.trim(),
+      });
+      storedSession.value = loadSession();
+      sessionForm.value = emptyForm();
+      refreshReadyStatus();
+    }
+
+    function disconnectSession() {
+      clearSession();
+      storedSession.value = null;
+      sessionForm.value = emptyForm();
+      refreshReadyStatus();
     }
 
     function joinBits(parts, sep = " · ") {
@@ -303,6 +403,18 @@ createApp({
       copyLabel,
       outputFields,
       examples,
+      sessionMethod,
+      linkedinConfigured,
+      browserConnected,
+      canLookup,
+      lookupButtonLabel,
+      sessionPillLabel,
+      sessionPillClass,
+      sessionForm,
+      persistApiKey,
+      onSessionPaste,
+      savePastedSession,
+      disconnectSession,
       metaLine,
       coverStyle,
       displayName,

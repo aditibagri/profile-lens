@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import hashlib
+
 from fastapi import APIRouter, Depends, Header, Query, Request
 
 from app.adapters import DEFAULT_ADAPTER, get_adapter, list_adapters
-from app.exceptions import LinkedInError
+from app.exceptions import LinkedInError, NotConfiguredError
+from app.linkedin.client import LinkedInClient
 from app.linkedin.parser import parse_profile
 from app.linkedin.urls import extract_public_id
 from app.schemas import (
     AdaptedProfileResponse,
     AdapterInfo,
+    LinkedInSessionIn,
     ProfileRequest,
-    ProfileResponse,
 )
 
 router = APIRouter(prefix="/v1", tags=["profile"])
@@ -57,7 +60,7 @@ async def post_profile(
     ),
     _: None = Depends(require_api_key),
 ) -> AdaptedProfileResponse:
-    return await _lookup(request, body.url, adapter)
+    return await _lookup(request, body.url, adapter, body.session)
 
 
 @router.get(
@@ -74,43 +77,102 @@ async def get_profile(
     ),
     _: None = Depends(require_api_key),
 ) -> AdaptedProfileResponse:
-    return await _lookup(request, url, adapter)
+    return await _lookup(request, url, adapter, None)
 
 
-async def _lookup(request: Request, url: str, adapter_name: str) -> AdaptedProfileResponse:
+def _visitor_client(session: LinkedInSessionIn, decoration_id: str) -> LinkedInClient | None:
+    li_at = (session.liAt or "").strip()
+    jsessionid = (session.jsessionid or "").strip()
+    if not li_at or not jsessionid:
+        return None
+    extras = {
+        "liap": session.liap,
+        "bcookie": session.bcookie,
+        "lidc": session.lidc,
+        "li_a": session.liA,
+    }
+    return LinkedInClient(
+        li_at=li_at,
+        jsessionid=jsessionid,
+        decoration_id=decoration_id,
+        extra_cookies=extras,
+        user_agent=session.userAgent,
+    )
+
+
+def _session_scope(session: LinkedInSessionIn | None) -> str:
+    token = ((session.liAt if session else "") or "").strip()
+    if not token:
+        return ""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+
+
+def _session_secrets(session: LinkedInSessionIn | None) -> list[str]:
+    if session is None:
+        return []
+    values = [
+        session.liAt,
+        session.jsessionid,
+        session.liap,
+        session.bcookie,
+        session.lidc,
+        session.liA,
+    ]
+    return [item.strip() for item in values if item and item.strip()]
+
+
+async def _lookup(
+    request: Request,
+    url: str,
+    adapter_name: str,
+    visitor_session: LinkedInSessionIn | None,
+) -> AdaptedProfileResponse:
     schema_adapter = get_adapter(adapter_name)
     public_id = extract_public_id(url)
     canonical = f"https://www.linkedin.com/in/{public_id}/"
+    request.state.redact_secrets = _session_secrets(visitor_session)
 
-    cached = request.app.state.cache.get(public_id)
-    if cached is not None:
+    settings = request.app.state.settings
+    ephemeral = _visitor_client(visitor_session, settings.decoration_id) if visitor_session else None
+    client = ephemeral or request.app.state.linkedin
+    scope = _session_scope(visitor_session) if ephemeral else ""
+
+    try:
+        cached = request.app.state.cache.get(public_id, scope)
+        if cached is not None:
+            return AdaptedProfileResponse(
+                adapter=schema_adapter.name,
+                data=schema_adapter.adapt(cached),
+            )
+
+        if not request.app.state.limiter.allow():
+            retry_after = request.app.state.limiter.retry_after()
+            raise LinkedInError(
+                f"Too many LinkedIn fetches from this server. Retry after {retry_after}s.",
+                status_code=429,
+                code="rate_limited",
+            )
+
+        if not client.configured:
+            raise NotConfiguredError()
+
+        payload = await client.fetch_profile(public_id)
+        if not payload:
+            raise LinkedInError("LinkedIn returned an empty profile payload.")
+
+        profile = parse_profile(payload, public_id, canonical)
+        if not profile.fullName and not profile.headline and not profile.experience:
+            raise LinkedInError(
+                "Could not parse profile fields from LinkedIn's response.",
+                status_code=502,
+                code="parse_error",
+            )
+
+        request.app.state.cache.set(public_id, profile, scope)
         return AdaptedProfileResponse(
             adapter=schema_adapter.name,
-            data=schema_adapter.adapt(cached),
+            data=schema_adapter.adapt(profile),
         )
-
-    if not request.app.state.limiter.allow():
-        retry_after = request.app.state.limiter.retry_after()
-        raise LinkedInError(
-            f"Too many LinkedIn fetches from this server. Retry after {retry_after}s.",
-            status_code=429,
-            code="rate_limited",
-        )
-
-    payload = await request.app.state.linkedin.fetch_profile(public_id)
-    if not payload:
-        raise LinkedInError("LinkedIn returned an empty profile payload.")
-
-    profile = parse_profile(payload, public_id, canonical)
-    if not profile.fullName and not profile.headline and not profile.experience:
-        raise LinkedInError(
-            "Could not parse profile fields from LinkedIn's response.",
-            status_code=502,
-            code="parse_error",
-        )
-
-    request.app.state.cache.set(public_id, profile)
-    return AdaptedProfileResponse(
-        adapter=schema_adapter.name,
-        data=schema_adapter.adapt(profile),
-    )
+    finally:
+        if ephemeral is not None:
+            await ephemeral.close()

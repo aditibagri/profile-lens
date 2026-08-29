@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Profile Lens session helper",
+  "version": "1.0.0",
+  "description": "Saves your LinkedIn session to the Profile Lens tab you have open. Cookies are not uploaded to any other site.",
+  "permissions": ["cookies", "scripting", "activeTab"],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://linkedin.com/*"
+  ],
+  "action": {
+    "default_title": "Profile Lens session",
+    "default_popup": "popup.html"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "profile-lens-session@local",
+      "strict_min_version": "109.0"
+    }
+  }
+}
