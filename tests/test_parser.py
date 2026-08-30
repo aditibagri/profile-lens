@@ -22,11 +22,13 @@ def test_parse_dash_profile(dash_payload: dict) -> None:
     assert len(profile.experience) == 1
     assert profile.experience[0].title == "Analyst"
     assert profile.experience[0].company == "Analytical Engine Co."
+    assert profile.experience[0].companyLogo.endswith("engine.png")
     assert profile.experience[0].dateRange is not None
     assert profile.experience[0].dateRange.start == "1842-01"
     assert profile.experience[0].dateRange.end == "1852-06"
 
     assert profile.education[0].school == "Home education"
+    assert profile.education[0].schoolLogo.endswith("home.png")
     assert profile.education[0].degree == "Mathematics"
 
     skill_names = {s.name for s in profile.skills}
@@ -57,7 +59,9 @@ def test_parse_legacy_profile_view(profile_view_payload: dict) -> None:
     assert profile.location == "Arlington, Virginia"
     assert profile.profileImage.endswith("photo.jpg")
     assert profile.experience[0].company == "United States Navy"
+    assert profile.experience[0].companyLogo.endswith("navy.png")
     assert profile.education[0].school == "Yale University"
+    assert profile.education[0].schoolLogo.endswith("yale.png")
     assert profile.skills[0].name == "COBOL"
     assert profile.certifications[0].issuer == "US Navy"
     assert profile.languages[0].proficiency == "Native or bilingual"
@@ -114,3 +118,57 @@ def test_parse_fills_thin_dash_from_section_views() -> None:
     assert math.endorsementCount == 42
     assert profile.certifications[0].issuer == "Royal Society"
     assert profile.languages[0].proficiency == "Native or bilingual"
+
+
+def test_parse_resolves_org_logo_by_company_name() -> None:
+    payload = {
+        "data": {"elements": ["*urn:li:fsd_profile:ABC123"]},
+        "included": [
+            {
+                "$type": "com.linkedin.voyager.dash.identity.profile.Profile",
+                "entityUrn": "urn:li:fsd_profile:ABC123",
+                "publicIdentifier": "ada-lovelace",
+                "firstName": "Ada",
+                "lastName": "Lovelace",
+            },
+            {
+                "$type": "com.linkedin.voyager.dash.identity.profile.Position",
+                "title": "Analyst",
+                "companyName": "Analytical Engine Co.",
+            },
+            {
+                "$type": "com.linkedin.voyager.dash.organization.Company",
+                "name": "Analytical Engine Co.",
+                "logoUrl": "https://media.licdn.com/dms/image/company/by-name.png",
+            },
+        ],
+    }
+    profile = parse_profile(payload, "ada-lovelace", "https://www.linkedin.com/in/ada-lovelace/")
+    assert profile.experience[0].companyLogo == "https://media.licdn.com/dms/image/company/by-name.png"
+
+
+def test_parse_resolves_org_logo_by_company_name() -> None:
+    payload = {
+        "data": {"elements": ["*urn:li:fsd_profile:ABC123"]},
+        "included": [
+            {
+                "$type": "com.linkedin.voyager.dash.identity.profile.Profile",
+                "entityUrn": "urn:li:fsd_profile:ABC123",
+                "publicIdentifier": "ada-lovelace",
+                "firstName": "Ada",
+                "lastName": "Lovelace",
+            },
+            {
+                "$type": "com.linkedin.voyager.dash.identity.profile.Position",
+                "title": "Analyst",
+                "companyName": "Analytical Engine Co.",
+            },
+            {
+                "$type": "com.linkedin.voyager.dash.organization.Company",
+                "name": "Analytical Engine Co.",
+                "logoUrl": "https://media.licdn.com/dms/image/company/by-name.png",
+            },
+        ],
+    }
+    profile = parse_profile(payload, "ada-lovelace", "https://www.linkedin.com/in/ada-lovelace/")
+    assert profile.experience[0].companyLogo == "https://media.licdn.com/dms/image/company/by-name.png"

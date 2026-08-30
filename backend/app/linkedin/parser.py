@@ -49,20 +49,34 @@ def _index_included(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     for item in payload.get("included") or []:
         if not isinstance(item, dict):
             continue
-        urn = item.get("entityUrn") or item.get("urn")
-        if urn:
-            index[str(urn)] = item
-            index[f"*{urn}"] = item
+        for key in ("entityUrn", "urn", "objectUrn"):
+            urn = item.get(key)
+            if urn:
+                index[str(urn)] = item
+                index[f"*{urn}"] = item
     return index
 
 
+def _lookup_urn(urn: str, index: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    if not urn:
+        return None
+    found = index.get(urn) or index.get(f"*{urn}")
+    if found:
+        return found
+    if urn.startswith("*"):
+        return index.get(urn[1:])
+    return None
+
+
 def _resolve(value: Any, index: dict[str, dict[str, Any]]) -> Any:
-    if isinstance(value, str) and value.startswith("*"):
-        return index.get(value) or index.get(value[1:])
+    if isinstance(value, str):
+        return _lookup_urn(value, index) or value
     if isinstance(value, dict):
-        urn = value.get("entityUrn") or value.get("*elements")
-        if isinstance(urn, str) and urn in index:
-            return index[urn]
+        urn = value.get("entityUrn") or value.get("urn") or value.get("objectUrn") or value.get("*elements")
+        if isinstance(urn, str):
+            found = _lookup_urn(urn, index)
+            if found:
+                return {**found, **value}
         return value
     return value
 
@@ -136,6 +150,11 @@ def _image_url(node: Any) -> str | None:
     if not isinstance(node, dict):
         return None
 
+    for key in ("src", "logoUrl"):
+        raw = node.get(key)
+        if isinstance(raw, str) and raw.startswith("http"):
+            return raw
+
     for key in (
         "displayImageReference",
         "displayImageReferenceResolutionResult",
@@ -145,8 +164,16 @@ def _image_url(node: Any) -> str | None:
         "croppedImage",
         "picture",
         "logo",
+        "logoV2",
+        "originalLogo",
+        "croppedLogo",
         "logoResolutionResult",
+        "companyLogo",
+        "schoolLogo",
+        "miniCompany",
+        "miniSchool",
         "backgroundImage",
+        "image",
     ):
         nested = node.get(key)
         if nested:
@@ -166,6 +193,85 @@ def _image_url(node: Any) -> str | None:
             if found:
                 return found
     return None
+
+
+_COMPANY_REF_KEYS = (
+    "company",
+    "*company",
+    "companyUrn",
+    "companyResolutionResult",
+    "miniCompany",
+    "*miniCompany",
+)
+_SCHOOL_REF_KEYS = (
+    "school",
+    "*school",
+    "schoolUrn",
+    "schoolResolutionResult",
+    "miniSchool",
+    "*miniSchool",
+)
+_DIRECT_LOGO_KEYS = (
+    "logoUrl",
+    "companyLogoUrl",
+    "schoolLogoUrl",
+    "logo",
+    "logoV2",
+    "companyLogo",
+    "schoolLogo",
+    "logoResolutionResult",
+)
+
+
+def _logo_by_org_name(
+    name: str | None,
+    included: list[dict[str, Any]],
+    type_names: tuple[str, ...],
+) -> str | None:
+    if not name:
+        return None
+    needle = name.strip().lower()
+    wanted = set(type_names)
+    for item in included:
+        if _type_name(item) not in wanted:
+            continue
+        item_name = _text(item.get("name") or item.get("companyName") or item.get("schoolName"))
+        if item_name and item_name.strip().lower() == needle:
+            found = _image_url(item)
+            if found:
+                return found
+    return None
+
+
+def _org_image(
+    item: dict[str, Any],
+    index: dict[str, dict[str, Any]],
+    included: list[dict[str, Any]],
+    *,
+    kind: str,
+) -> str | None:
+    for key in _DIRECT_LOGO_KEYS:
+        found = _image_url(item.get(key))
+        if found:
+            return found
+
+    ref_keys = _COMPANY_REF_KEYS if kind == "company" else _SCHOOL_REF_KEYS
+    for key in ref_keys:
+        raw = item.get(key)
+        if raw is None:
+            continue
+        org = _resolve(raw, index)
+        found = _image_url(org)
+        if found:
+            return found
+
+    name = _company_name(item, index)
+    if kind == "school":
+        name = name or _text(item.get("schoolName"))
+        types = ("School", "MiniSchool")
+    else:
+        types = ("Company", "MiniCompany", "Organization")
+    return _logo_by_org_name(name, included, types)
 
 
 def _location(profile: dict[str, Any]) -> str | None:
@@ -387,7 +493,7 @@ def _parse_dash(payload: dict[str, Any], public_id: str, profile_url: str) -> Pr
                 description=_text(item.get("description")),
                 employmentType=_text(item.get("employmentType") or item.get("employmentStatus")),
                 dateRange=_date_range(item),
-                companyLogo=_image_url(item.get("company") and _resolve(item.get("company"), index)),
+                companyLogo=_org_image(item, index, included, kind="company"),
             )
         )
 
@@ -401,7 +507,7 @@ def _parse_dash(payload: dict[str, Any], public_id: str, profile_url: str) -> Pr
                 fieldOfStudy=_text(item.get("fieldOfStudy")),
                 description=_text(item.get("description")),
                 dateRange=_date_range(item),
-                schoolLogo=_image_url(item.get("school") and _resolve(item.get("school"), index)),
+                schoolLogo=_org_image(item, index, included, kind="school"),
             )
         )
 
@@ -456,6 +562,7 @@ def _parse_profile_view(payload: dict[str, Any], public_id: str, profile_url: st
     full = " ".join(p for p in (first, last) if p) or None
 
     included = [item for item in (payload.get("included") or []) if isinstance(item, dict)]
+    index = _index_included(payload)
 
     experience = []
     for item in _elements(payload.get("positionView")):
@@ -468,7 +575,7 @@ def _parse_profile_view(payload: dict[str, Any], public_id: str, profile_url: st
                 description=_text(item.get("description")),
                 employmentType=_text(item.get("employmentType")),
                 dateRange=_date_range(item),
-                companyLogo=_image_url(item.get("company")),
+                companyLogo=_org_image(item, index, included, kind="company"),
             )
         )
 
@@ -482,7 +589,7 @@ def _parse_profile_view(payload: dict[str, Any], public_id: str, profile_url: st
                 fieldOfStudy=_text(item.get("fieldOfStudy")),
                 description=_text(item.get("description")),
                 dateRange=_date_range(item),
-                schoolLogo=_image_url(item.get("school")),
+                schoolLogo=_org_image(item, index, included, kind="school"),
             )
         )
 

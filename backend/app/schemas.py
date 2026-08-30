@@ -182,6 +182,7 @@ class HealthResponse(BaseModel):
 class UiConfigResponse(BaseModel):
     apiKeyRequired: bool
     linkedinConfigured: bool
+    hostSessionForUi: bool = False
     adapters: list[AdapterInfo] = Field(default_factory=list)
     defaultAdapter: str = "profilelens"
     schemaFields: list[SchemaFieldInfo] = Field(default_factory=list)

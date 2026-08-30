@@ -53,6 +53,7 @@
       "entityUrn": "urn:li:fsd_profilePosition:1",
       "title": "Analyst",
       "companyName": "Analytical Engine Co.",
+      "company": "*urn:li:fsd_company:99",
       "locationName": "London",
       "description": "Designed computation notes.",
       "employmentType": "Full-time",
@@ -65,6 +66,7 @@
       "$type": "com.linkedin.voyager.dash.identity.profile.Education",
       "entityUrn": "urn:li:fsd_profileEducation:1",
       "schoolName": "Home education",
+      "school": "*urn:li:fsd_school:7",
       "degreeName": "Mathematics",
       "fieldOfStudy": "Calculus",
       "dateRange": {
@@ -118,6 +120,40 @@
       "issuer": "United Kingdom",
       "description": "Peerage title",
       "issuedOn": { "year": 1838 }
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.organization.Company",
+      "entityUrn": "urn:li:fsd_company:99",
+      "name": "Analytical Engine Co.",
+      "logo": {
+        "vectorImage": {
+          "rootUrl": "https://media.licdn.com/dms/image/company/",
+          "artifacts": [
+            {
+              "width": 200,
+              "height": 200,
+              "fileIdentifyingUrlPathSegment": "engine.png"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "$type": "com.linkedin.voyager.dash.organization.School",
+      "entityUrn": "urn:li:fsd_school:7",
+      "name": "Home education",
+      "logoV2": {
+        "vectorImage": {
+          "rootUrl": "https://media.licdn.com/dms/image/school/",
+          "artifacts": [
+            {
+              "width": 200,
+              "height": 200,
+              "fileIdentifyingUrlPathSegment": "home.png"
+            }
+          ]
+        }
+      }
     }
   ]
 }

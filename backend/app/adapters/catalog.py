@@ -24,8 +24,10 @@ SCHEMA_FIELDS: list[dict[str, str]] = [
     {"path": "honors", "label": "Honors (full list)", "group": "History"},
     {"path": "experience.0.title", "label": "Latest job title", "group": "Shortcuts"},
     {"path": "experience.0.company", "label": "Latest company", "group": "Shortcuts"},
+    {"path": "experience.0.companyLogo", "label": "Latest company logo", "group": "Shortcuts"},
     {"path": "experience.0.location", "label": "Latest job location", "group": "Shortcuts"},
     {"path": "education.0.school", "label": "Latest school", "group": "Shortcuts"},
+    {"path": "education.0.schoolLogo", "label": "Latest school logo", "group": "Shortcuts"},
     {"path": "education.0.degree", "label": "Latest degree", "group": "Shortcuts"},
     {"path": "education.0.fieldOfStudy", "label": "Latest field of study", "group": "Shortcuts"},
 ]

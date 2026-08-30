@@ -21,11 +21,13 @@ Do **not** type a LinkedIn password into this app. Cookies expire; if lookups fa
    - **Paste cookies:** copy `li_at` and `JSESSIONID` from DevTools and save them in the form on the page.
 4. Paste a `linkedin.com/in/…` URL and fetch.
 
-The session is stored in **that visitor’s browser** and sent only with their lookup. The server does not keep it.
+The session is stored in **that visitor’s browser** and sent only with their lookup. **None of your session cookies are stored on the server** — they are used for that request and discarded.
 
 **Server operator (optional fallback)**
 
-You may still put `LINKEDIN_LI_AT` / `LINKEDIN_JSESSIONID` in Render env vars so the site works even when a visitor has not connected. Set `API_KEY` on a public URL so strangers cannot spend that session.
+`LINKEDIN_LI_AT` / `LINKEDIN_JSESSIONID` on the **local** machine unlock the website (“Using the host’s LinkedIn session”) because the IP matches the browser that minted the cookies.
+
+On **Render** those same cookies usually get `401`/`403` — LinkedIn treats datacenter IPs differently. The public site therefore asks every visitor to **Connect** in the browser. Server cookies remain a fallback for `curl` / `/v1/profile` if you set them plus `LINKEDIN_USER_AGENT` and the extra cookies; to force the website to use them anyway, set `LINKEDIN_HOST_SESSION_UI=true` (often still fails). Set `API_KEY` on a public URL so strangers cannot spend that session.
 
 #### Option 2 — Browser extension (Chrome or Firefox)
 

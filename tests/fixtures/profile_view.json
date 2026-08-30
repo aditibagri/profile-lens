@@ -30,6 +30,23 @@
       {
         "title": "Rear Admiral",
         "companyName": "United States Navy",
+        "company": {
+          "miniCompany": {
+            "name": "United States Navy",
+            "logo": {
+              "com.linkedin.common.VectorImage": {
+                "rootUrl": "https://media.licdn.com/dms/image/navy/",
+                "artifacts": [
+                  {
+                    "width": 200,
+                    "height": 200,
+                    "fileIdentifyingUrlPathSegment": "navy.png"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "locationName": "United States",
         "description": "COBOL and compiler work.",
         "dateRange": {
@@ -43,6 +60,23 @@
     "elements": [
       {
         "schoolName": "Yale University",
+        "school": {
+          "miniSchool": {
+            "schoolName": "Yale University",
+            "logo": {
+              "com.linkedin.common.VectorImage": {
+                "rootUrl": "https://media.licdn.com/dms/image/yale/",
+                "artifacts": [
+                  {
+                    "width": 200,
+                    "height": 200,
+                    "fileIdentifyingUrlPathSegment": "yale.png"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "degreeName": "Ph.D.",
         "fieldOfStudy": "Mathematics",
         "dateRange": {

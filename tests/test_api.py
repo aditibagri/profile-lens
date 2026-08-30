@@ -26,6 +26,19 @@ def test_create_app_passes_extra_cookies() -> None:
         assert cookies["li_at"] == "tok"
 
 
+def test_host_session_ui_off_when_flagged() -> None:
+    settings = Settings(
+        linkedin_li_at="x",
+        linkedin_jsessionid="ajax:1",
+        api_key="",
+        linkedin_host_session_ui="false",
+    )
+    with _client(settings) as client:
+        cfg = client.get("/ui/config").json()
+        assert cfg["linkedinConfigured"] is True
+        assert cfg["hostSessionForUi"] is False
+
+
 def test_health_reports_cookie_presence() -> None:
     empty = Settings(linkedin_li_at="", linkedin_jsessionid="", api_key="")
     with _client(empty) as client:
@@ -47,12 +60,26 @@ def test_ui_home_and_config() -> None:
         assert home.status_code == 200
         assert "text/html" in home.headers["content-type"]
         assert b"Connect your LinkedIn" in home.content
+        assert b"brand-logo" in home.content
+        assert b"brand-name" in home.content
+        assert b"Profile Lens" in home.content
+        assert b"flow-step" in home.content
+        assert b"goToStep" in home.content
+        assert b"Get JSON" in home.content
+        assert b"Adapter" in home.content
+        assert b"None of your session cookies are stored" in home.content
         assert b"schema-builder" in home.content
         assert b"Your adapter JSON" in home.content
         assert b"Profile Lens adapter" in home.content
-        assert b"Response adapter" in home.content
+        assert b"Step 4" in home.content
         assert b"Save adapter" in home.content
         assert b"From LinkedIn" in home.content
+        assert b"At a glance" in home.content
+        assert b"Mapped JSON from the" in home.content
+        assert b"view === 'response'" in home.content
+        assert b"Experience" in home.content
+        assert b"companyLogo" in home.content
+        assert b"schoolLogo" in home.content
         assert b"jsoneditor" in home.content
         assert b"validateAdapterTemplate" in client.get("/js/schemaEditor.js").content
         assert b"vue" in home.content.lower()
@@ -66,6 +93,7 @@ def test_ui_home_and_config() -> None:
         body = cfg.json()
         assert body["apiKeyRequired"] is True
         assert body["linkedinConfigured"] is True
+        assert body["hostSessionForUi"] is True
         assert body["defaultAdapter"] == "profilelens"
         names = {a["name"] for a in body["adapters"]}
         assert names == {"profilelens", "custom"}

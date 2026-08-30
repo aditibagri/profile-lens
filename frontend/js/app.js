@@ -126,13 +126,14 @@ const app = createApp({
     const apiKey = ref("");
     const apiKeyRequired = ref(false);
     const linkedinConfigured = ref(false);
+    const hostSessionForUi = ref(false);
     const loading = ref(false);
     const status = ref("Loading…");
     const statusIsError = ref(false);
     const profile = ref(null);
     const activeAdapter = ref("profilelens");
     const availableAdapters = ref([]);
-    const view = ref("pretty");
+    const view = ref("response");
     const resultEl = ref(null);
     const copyLabel = ref("Copy JSON");
     const examples = EXAMPLES;
@@ -154,6 +155,7 @@ const app = createApp({
     const jsonEditorEl = ref(null);
     const resultAdapter = ref("");
     const sourceProfile = ref(null);
+    const failedLogos = ref({});
     let persistSchema = false;
     let jsonEditor = null;
     let settingEditor = false;
@@ -166,12 +168,20 @@ const app = createApp({
     );
 
     const browserConnected = computed(() => Boolean(storedSession.value?.liAt && storedSession.value?.jsessionid));
-    const canLookup = computed(() => browserConnected.value || linkedinConfigured.value);
+    const canLookup = computed(() => browserConnected.value || hostSessionForUi.value);
     const flowStep = computed(() => {
       if (!canLookup.value) return 1;
       if (!sourceProfile.value && !profile.value) return 2;
       return 3;
     });
+
+    function goToStep(step) {
+      const ids = { 1: "connect", 2: "lookup", 3: "result", 4: "how-to" };
+      const target =
+        document.getElementById(ids[step]) ||
+        (step === 3 ? document.getElementById("lookup") : null);
+      target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
     const lookupButtonLabel = computed(() => {
       if (loading.value) return "Fetching…";
       if (!canLookup.value) return "Connect first";
@@ -179,11 +189,12 @@ const app = createApp({
     });
     const sessionPillLabel = computed(() => {
       if (browserConnected.value) return "Connected in this browser";
-      if (linkedinConfigured.value) return "Using the host’s LinkedIn session";
+      if (hostSessionForUi.value) return "Using the host’s LinkedIn session";
+      if (linkedinConfigured.value) return "Connect LinkedIn here (host session is local-only)";
       return "Not connected";
     });
     const sessionPillClass = computed(() => {
-      if (browserConnected.value || linkedinConfigured.value) return "ok";
+      if (browserConnected.value || hostSessionForUi.value) return "ok";
       return "off";
     });
 
@@ -423,10 +434,10 @@ const app = createApp({
     function refreshReadyStatus() {
       if (browserConnected.value) {
         setStatus("Connected — paste a LinkedIn profile URL.");
-      } else if (linkedinConfigured.value) {
+      } else if (hostSessionForUi.value) {
         setStatus("Ready — paste a public LinkedIn profile URL.");
       } else {
-        setStatus("Connect LinkedIn on the right, then paste a profile URL.", true);
+        setStatus("Connect LinkedIn in step 1, then paste a profile URL.", true);
       }
     }
 
@@ -435,6 +446,7 @@ const app = createApp({
         const cfg = await fetchUiConfig();
         apiKeyRequired.value = Boolean(cfg.apiKeyRequired);
         linkedinConfigured.value = Boolean(cfg.linkedinConfigured);
+        hostSessionForUi.value = Boolean(cfg.hostSessionForUi);
         availableAdapters.value = cfg.adapters || [];
         schemaFields.value = cfg.schemaFields || [];
         schemaPresets.value = cfg.schemaPresets || {};
@@ -477,7 +489,8 @@ const app = createApp({
       loading.value = true;
       profile.value = null;
       sourceProfile.value = null;
-      view.value = "pretty";
+      failedLogos.value = {};
+      view.value = "response";
       copyLabel.value = "Copy JSON";
       setStatus(`Fetching with adapter “${adapter}”…`);
 
@@ -749,6 +762,25 @@ const app = createApp({
       refreshReadyStatus();
     }
 
+    function showOrgLogo(url) {
+      return Boolean(url) && !failedLogos.value[url];
+    }
+
+    function markLogoFailed(url) {
+      if (!url || failedLogos.value[url]) return;
+      failedLogos.value = { ...failedLogos.value, [url]: true };
+    }
+
+    function orgInitials(name) {
+      const parts = String(name || "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+      if (!parts.length) return "";
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+
     function joinBits(parts, sep = " · ") {
       return (parts || []).filter(Boolean).join(sep);
     }
@@ -875,9 +907,11 @@ const app = createApp({
       examples,
       sessionMethod,
       linkedinConfigured,
+      hostSessionForUi,
       browserConnected,
       canLookup,
       flowStep,
+      goToStep,
       lookupButtonLabel,
       sessionPillLabel,
       sessionPillClass,
@@ -910,6 +944,9 @@ const app = createApp({
       useExample,
       onFetchProfile,
       formatCustomValue,
+      showOrgLogo,
+      markLogoFailed,
+      orgInitials,
       joinBits,
       formatRange,
       copyJson,

@@ -91,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return UiConfigResponse(
             apiKeyRequired=bool(settings.api_key_value),
             linkedinConfigured=settings.linkedin_configured,
+            hostSessionForUi=settings.host_session_for_ui,
             adapters=[
                 AdapterInfo(name=a.name, description=a.description) for a in list_adapters()
             ],

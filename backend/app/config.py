@@ -1,9 +1,17 @@
+import os
 from functools import lru_cache
 
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.security import collect_secrets, plain_secret
+
+_CLOUD_ENV_MARKERS = ("RENDER", "RAILWAY_ENVIRONMENT", "FLY_APP_NAME", "K_SERVICE")
+
+
+def running_on_cloud() -> bool:
+    """True on Render / Railway / Fly / Cloud Run — LinkedIn often rejects home cookies."""
+    return any(os.environ.get(name) for name in _CLOUD_ENV_MARKERS)
 
 
 class Settings(BaseSettings):
@@ -28,6 +36,8 @@ class Settings(BaseSettings):
     decoration_id: str = (
         "com.linkedin.voyager.dash.deco.identity.profile.FullProfileWithEntities-93"
     )
+    # unset = auto (on locally, off on Render). Set true/false to override.
+    linkedin_host_session_ui: str = ""
 
     @field_validator(
         "linkedin_li_at",
@@ -48,6 +58,22 @@ class Settings(BaseSettings):
     @property
     def linkedin_configured(self) -> bool:
         return bool(plain_secret(self.linkedin_li_at) and plain_secret(self.linkedin_jsessionid))
+
+    @property
+    def host_session_for_ui(self) -> bool:
+        """Whether the website may look up profiles using server cookies.
+
+        Home-minted ``li_at`` cookies usually work on this machine and fail from
+        a Render datacenter IP. The public site therefore asks visitors to connect.
+        """
+        if not self.linkedin_configured:
+            return False
+        flag = (self.linkedin_host_session_ui or "").strip().lower()
+        if flag in {"1", "true", "yes", "on"}:
+            return True
+        if flag in {"0", "false", "no", "off"}:
+            return False
+        return not running_on_cloud()
 
     @property
     def api_key_value(self) -> str:
