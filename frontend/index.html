@@ -145,36 +145,20 @@
               <button
                 type="button"
                 class="toggle"
+                :class="{ active: sessionMethod === 'paste' }"
+                @click="sessionMethod = 'paste'"
+              >
+                Session cookies
+              </button>
+              <button
+                type="button"
+                class="toggle"
                 :class="{ active: sessionMethod === 'extension' }"
                 @click="sessionMethod = 'extension'"
               >
                 Extension
               </button>
-              <button
-                type="button"
-                class="toggle"
-                :class="{ active: sessionMethod === 'paste' }"
-                @click="sessionMethod = 'paste'"
-              >
-                Paste cookies
-              </button>
             </div>
-
-            <article v-show="sessionMethod === 'extension'" class="how-to-card">
-              <p class="how-to-card-kicker">Chrome or Firefox · about a minute</p>
-              <ol class="steps">
-                <li>Log into LinkedIn in <strong>this</strong> browser.</li>
-                <li>
-                  Load the helper from this repo’s <code>extension</code> folder.
-                  <details class="install-details">
-                    <summary>Exact clicks</summary>
-                    <p><strong>Chrome:</strong> <code>chrome://extensions</code> → Developer mode → Load unpacked → <code>extension</code>.</p>
-                    <p><strong>Firefox:</strong> <code>about:debugging</code> → This Firefox → Load Temporary Add-on → <code>extension/manifest.json</code>.</p>
-                  </details>
-                </li>
-                <li>Stay on this tab. Click the Profile Lens icon → <strong>Save to this website</strong>.</li>
-              </ol>
-            </article>
 
             <article v-show="sessionMethod === 'paste'" class="how-to-card">
               <p class="how-to-card-kicker">Any browser, including Safari</p>
@@ -210,6 +194,22 @@
                 </details>
                 <button type="submit" class="primary-btn">Save connection</button>
               </form>
+            </article>
+
+            <article v-show="sessionMethod === 'extension'" class="how-to-card">
+              <p class="how-to-card-kicker">Chrome or Firefox · about a minute</p>
+              <ol class="steps">
+                <li>Log into LinkedIn in <strong>this</strong> browser.</li>
+                <li>
+                  Load the helper from this repo’s <code>extension</code> folder.
+                  <details class="install-details">
+                    <summary>Exact clicks</summary>
+                    <p><strong>Chrome:</strong> <code>chrome://extensions</code> → Developer mode → Load unpacked → <code>extension</code>.</p>
+                    <p><strong>Firefox:</strong> <code>about:debugging</code> → This Firefox → Load Temporary Add-on → <code>extension/manifest.json</code>.</p>
+                  </details>
+                </li>
+                <li>Stay on this tab. Click the Profile Lens icon → <strong>Save to this website</strong>.</li>
+              </ol>
             </article>
           </template>
         </section>
@@ -692,6 +692,6 @@
         </li>
       </ul>
     </script>
-    <script type="module" src="/js/app.js?v=appbar"></script>
+    <script type="module" src="/js/app.js?v=cookies-first"></script>
   </body>
 </html>
